@@ -49,6 +49,36 @@ def show_tables(db):
         typer.echo(f"yay u made this table: {table[0]}")
 
 
+# set up typer and every command. with subcommands
+app = typer.Typer()
+create_app = typer.Typer()
+app.add_typer(create_app, name="create")
+show_app = typer.Typer()
+app.add_typer(show_app, name="show")
+
+# typer main.py run create --help
+@create_app.command("concert")
+def create_concert_events(name:str, contact:str):
+    # code that creates the db line in concert events
+    print(f"creating event {name}")
+
+@create_app.command("artist")
+def create_aritst(name:str, discription:str):
+    # code that creates the db line in artist events
+    print(f"creating artist: {name}")
+
+
+# typer main.py run show --help
+@show_app.command("concert")
+def show_concert_events():
+    print(f"List of all concert events:")
+
+@show_app.command("artist")
+def show_aritsts():
+    print(f"List of all concert events:")
+
+
+
 def main():
     db = sqlite3.connect(":memory:")
     db.create_function("new_uuid", 0, lambda: str(uuid4()))
@@ -60,4 +90,5 @@ def main():
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
+
