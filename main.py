@@ -1,6 +1,7 @@
 import sqlite3
 import typer
 from uuid import UUID, uuid4
+from email_validator import EmailNotValidError, validate_email
 
 SCHEMA = """
          CREATE TABLE IF NOT EXISTS concert_events
@@ -19,7 +20,7 @@ SCHEMA = """
          (
              id              TEXT PRIMARY KEY NOT NULL DEFAULT (new_uuid()),
              name            TEXT             NOT NULL CHECK (length(name) <= 2000),
-             booking_contact TEXT             NOT NULL
+             booking_contact TEXT             NOT NULL CHECK (is_email(booking_contact))
          );
 
          CREATE TABLE IF NOT EXISTS event_artists
@@ -32,6 +33,16 @@ SCHEMA = """
          """
 
 
+def is_email(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        validate_email(value, check_deliverability=False)
+        return True
+    except EmailNotValidError:
+        return False
+
+
 # TODO: testing only, pls delete later
 def show_tables(db):
     for table in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
@@ -41,6 +52,7 @@ def show_tables(db):
 def main():
     db = sqlite3.connect(":memory:")
     db.create_function("new_uuid", 0, lambda: str(uuid4()))
+    db.create_function("is_email", 1, is_email, deterministic=True)
     db.execute("PRAGMA foreign_keys = ON")
     db.executescript(SCHEMA)
     show_tables(db)

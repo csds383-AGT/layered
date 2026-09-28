@@ -13,6 +13,7 @@
       pythonEnv = pkgs.python3.withPackages (ps: with ps; [
         pip
         typer
+        email-validator
       ]);
     in
     {
