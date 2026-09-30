@@ -75,6 +75,10 @@ create_app = typer.Typer()
 app.add_typer(create_app, name="create")
 show_app = typer.Typer()
 app.add_typer(show_app, name="show")
+update_app = typer.Typer()
+app.add_typer(update_app, name="update")
+delete_app = typer.Typer()
+app.add_typer(delete_app, name="delete")
 
 _db = None
 
@@ -168,6 +172,99 @@ def show_artists():
             "SELECT id, name, booking_contact FROM artists ORDER BY name"
     ):
         typer.echo(f"- {name} <{booking_contact}> ({artist_id})")
+
+
+# typer main.py run update concert --help
+@update_app.command("concert")
+def update_concert_events(
+        name: str,
+        description: str,
+        available_tickets: int,
+        ticket_price: int,
+        artist: list[str] = typer.Option([], help="Artist ID to book for this event (repeatable)"),
+):
+    db = get_db()
+    try:
+        check_sold_out_price(available_tickets, ticket_price)
+        with db:
+            (event_id,) = db.execute(
+                "INSERT INTO concert_events (name, description, available_tickets, ticket_price) "
+                "VALUES (?, ?, ?, ?) RETURNING id",
+                (name, description, available_tickets, ticket_price),
+            ).fetchone()
+            for artist_id in artist:
+                db.execute(
+                    "INSERT INTO event_artists (event_id, artist_id) VALUES (?, ?)",
+                    (event_id, artist_id),
+                )
+                check_artist_rules(db, artist_id)
+    except (sqlite3.IntegrityError, ValueError) as e:
+        typer.echo(f"could not create event: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"created event {name} ({event_id})")
+
+
+# typer main.py run update_ artist --help
+@update_app.command("artist")
+def update_artist(name: str, booking_contact: str):
+    db = get_db()
+    try:
+        with db:
+            (artist_id,) = db.execute(
+                "INSERT INTO artists (name, booking_contact) VALUES (?, ?) RETURNING id",
+                (name, booking_contact),
+            ).fetchone()
+    except sqlite3.IntegrityError as e:
+        typer.echo(f"could not create artist: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"created artist: {name} ({artist_id})")
+
+
+# typer main.py run update concert --help
+@delete_app.command("concert")
+def delete_concert_events(
+        name: str,
+        description: str,
+        available_tickets: int,
+        ticket_price: int,
+        artist: list[str] = typer.Option([], help="Artist ID to book for this event (repeatable)"),
+):
+    db = get_db()
+    try:
+        check_sold_out_price(available_tickets, ticket_price)
+        with db:
+            (event_id,) = db.execute(
+                "INSERT INTO concert_events (name, description, available_tickets, ticket_price) "
+                "VALUES (?, ?, ?, ?) RETURNING id",
+                (name, description, available_tickets, ticket_price),
+            ).fetchone()
+            for artist_id in artist:
+                db.execute(
+                    "INSERT INTO event_artists (event_id, artist_id) VALUES (?, ?)",
+                    (event_id, artist_id),
+                )
+                check_artist_rules(db, artist_id)
+    except (sqlite3.IntegrityError, ValueError) as e:
+        typer.echo(f"could not create event: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"created event {name} ({event_id})")
+
+
+# typer main.py run update_ artist --help
+@delete_app.command("artist")
+def delete_artist(name: str, booking_contact: str):
+    db = get_db()
+    try:
+        with db:
+            (artist_id,) = db.execute(
+                "INSERT INTO artists (name, booking_contact) VALUES (?, ?) RETURNING id",
+                (name, booking_contact),
+            ).fetchone()
+    except sqlite3.IntegrityError as e:
+        typer.echo(f"could not create artist: {e}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"created artist: {name} ({artist_id})")
+
 
 
 if __name__ == "__main__":
