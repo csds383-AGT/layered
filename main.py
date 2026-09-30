@@ -204,7 +204,7 @@ def update_concert_events(
     typer.echo(f"created event {name} ({event_id})")
 
 
-# typer main.py run update_ artist --help
+# typer main.py run update artist --help
 @update_app.command("artist")
 def update_artist(name: str, booking_contact: str):
     db = get_db()
@@ -220,7 +220,7 @@ def update_artist(name: str, booking_contact: str):
     typer.echo(f"created artist: {name} ({artist_id})")
 
 
-# typer main.py run update concert --help
+# typer main.py run delete concert --help
 @delete_app.command("concert")
 def delete_concert_events(
         name: str,
@@ -250,7 +250,7 @@ def delete_concert_events(
     typer.echo(f"created event {name} ({event_id})")
 
 
-# typer main.py run update_ artist --help
+# typer main.py run delete artist --help
 @delete_app.command("artist")
 def delete_artist(name: str, booking_contact: str):
     db = get_db()
