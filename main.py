@@ -45,6 +45,7 @@ def is_email(value):
 
 
 db = sqlite3.connect(":memory:")
+db.row_factory = sqlite3.Row  # lets rows be read by column name like row["id"]
 db.create_function("new_uuid", 0, lambda: str(uuid4()))
 db.create_function("is_email", 1, is_email, deterministic=True)
 db.execute("PRAGMA foreign_keys = ON")
@@ -87,6 +88,18 @@ def to_cents(price):
 
 
 # ======================================================================
+# Output formatting
+# ======================================================================
+
+def to_dollars(cents):
+    return f"${cents / 100:,.2f}"
+
+
+def format_ids(ids):
+    return ", ".join(ids) if ids else "none"
+
+
+# ======================================================================
 # Business rules
 # ======================================================================
 
@@ -94,7 +107,7 @@ def check_artist_rules(artist_id):
     duplicate_names, total_price = db.execute(
         "SELECT COUNT(*) - COUNT(DISTINCT e.name), SUM(e.ticket_price) "
         "FROM event_artists ea JOIN concert_events e ON e.id = ea.event_id WHERE ea.artist_id = ?",
-        (artist_id,),
+        [artist_id],
     ).fetchone()
     if duplicate_names:
         raise ValueError(f"artist {artist_id} is already booked for an event with this name")
@@ -134,12 +147,12 @@ def create_concert_events(
         custom_id = None if custom_id is None else str(UUID(custom_id))
         with db:
             # without --id the database generates one, and RETURNING gives back whichever id was used
-            (event_id,) = db.execute(
+            event_id = db.execute(
                 "INSERT INTO concert_events VALUES (COALESCE(?, new_uuid()), ?, ?, ?, ?) RETURNING id",
-                (custom_id, name, description, available_tickets, to_cents(ticket_price)),
-            ).fetchone()
+                [custom_id, name, description, available_tickets, to_cents(ticket_price)],
+            ).fetchone()["id"]
             for artist_id in artist:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
+                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
                 check_artist_rules(artist_id)
     except (sqlite3.IntegrityError, ValueError) as e:
         fail(f"could not create event: {e}")
@@ -150,18 +163,18 @@ def create_concert_events(
 def show_concert_events(event_id: str | None = typer.Argument(None, help="Show only this event")):
     # with no id (NULL) the WHERE matches every row
     events = db.execute(
-        "SELECT * FROM concert_events WHERE ? IS NULL OR id = ? ORDER BY name", (event_id, event_id)
+        "SELECT * FROM concert_events WHERE ? IS NULL OR id = ? ORDER BY name", [event_id, event_id]
     ).fetchall()
     if event_id and not events:
         fail(f"no event with id {event_id}")
     for event_id, name, description, available_tickets, ticket_price in events:
-        artist_ids = [row[0] for row in
-                      db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", (event_id,))]
+        artist_rows = db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", [event_id])
+        artist_ids = [row["artist_id"] for row in artist_rows]
         typer.echo(f"- {name} ({event_id})")
         typer.echo(f"    description: {description}")
         typer.echo(f"    available tickets: {available_tickets}")
-        typer.echo(f"    ticket price: ${ticket_price / 100:,.2f}")
-        typer.echo(f"    artist ids: {', '.join(artist_ids) or 'none'}")
+        typer.echo(f"    ticket price: {to_dollars(ticket_price)}")
+        typer.echo(f"    artist ids: {format_ids(artist_ids)}")
 
 
 @update_app.command("concert", help="Update a concert event")
@@ -182,21 +195,21 @@ def update_concert_events(
                 "UPDATE concert_events SET name = COALESCE(?, name), description = COALESCE(?, description), "
                 "available_tickets = COALESCE(?, available_tickets), ticket_price = COALESCE(?, ticket_price) "
                 "WHERE id = ?",
-                (name, description, available_tickets, cents, event_id),
+                [name, description, available_tickets, cents, event_id],
             ).rowcount
-            if not updated:
+            if updated == 0:
                 raise ValueError(f"no event with id {event_id}")
             for artist_id in add_artist:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
+                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
             for artist_id in remove_artist:
-                if not db.execute(
-                        "DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?", (event_id, artist_id)
-                ).rowcount:
+                removed = db.execute("DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?",
+                                     [event_id, artist_id])
+                if removed.rowcount == 0:
                     raise ValueError(f"artist {artist_id} is not booked for this event")
             # a new name or price can break the rules for any artist booked on this event
-            for (artist_id,) in db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?",
-                                           (event_id,)).fetchall():
-                check_artist_rules(artist_id)
+            booked = db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", [event_id]).fetchall()
+            for row in booked:
+                check_artist_rules(row["artist_id"])
     except (sqlite3.IntegrityError, ValueError) as e:
         fail(f"could not update event: {e}")
     typer.echo(f"updated event {event_id}")
@@ -205,8 +218,8 @@ def update_concert_events(
 @delete_app.command("concert", help="Delete a concert event")
 def delete_concert_events(event_id: str):
     with db:
-        deleted = db.execute("DELETE FROM concert_events WHERE id = ?", (event_id,)).rowcount
-    if not deleted:
+        deleted = db.execute("DELETE FROM concert_events WHERE id = ?", [event_id]).rowcount
+    if deleted == 0:
         fail(f"could not delete event: no event with id {event_id}")
     typer.echo(f"deleted event {event_id}")
 
@@ -225,12 +238,12 @@ def create_artist(
     try:
         custom_id = None if custom_id is None else str(UUID(custom_id))
         with db:
-            (artist_id,) = db.execute(
+            artist_id = db.execute(
                 "INSERT INTO artists VALUES (COALESCE(?, new_uuid()), ?, ?) RETURNING id",
-                (custom_id, name, booking_contact),
-            ).fetchone()
+                [custom_id, name, booking_contact],
+            ).fetchone()["id"]
             for event_id in event:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
+                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
             check_artist_rules(artist_id)
     except (sqlite3.IntegrityError, ValueError) as e:
         fail(f"could not create artist: {e}")
@@ -240,16 +253,16 @@ def create_artist(
 @show_app.command("artist", help="Show all artists, or one by ID")
 def show_artists(artist_id: str | None = typer.Argument(None, help="Show only this artist")):
     artists = db.execute(
-        "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", (artist_id, artist_id)
+        "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", [artist_id, artist_id]
     ).fetchall()
     if artist_id and not artists:
         fail(f"no artist with id {artist_id}")
     for artist_id, name, booking_contact in artists:
-        event_ids = [row[0] for row in
-                     db.execute("SELECT event_id FROM event_artists WHERE artist_id = ?", (artist_id,))]
+        event_rows = db.execute("SELECT event_id FROM event_artists WHERE artist_id = ?", [artist_id])
+        event_ids = [row["event_id"] for row in event_rows]
         typer.echo(f"- {name} ({artist_id})")
         typer.echo(f"    booking contact: {booking_contact}")
-        typer.echo(f"    event ids: {', '.join(event_ids) or 'none'}")
+        typer.echo(f"    event ids: {format_ids(event_ids)}")
 
 
 @update_app.command("artist", help="Update an artist")
@@ -265,16 +278,16 @@ def update_artist(
             updated = db.execute(
                 "UPDATE artists SET name = COALESCE(?, name), booking_contact = COALESCE(?, booking_contact) "
                 "WHERE id = ?",
-                (name, booking_contact, artist_id),
+                [name, booking_contact, artist_id],
             ).rowcount
-            if not updated:
+            if updated == 0:
                 raise ValueError(f"no artist with id {artist_id}")
             for event_id in add_event:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
+                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
             for event_id in remove_event:
-                if not db.execute(
-                        "DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?", (event_id, artist_id)
-                ).rowcount:
+                removed = db.execute("DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?",
+                                     [event_id, artist_id])
+                if removed.rowcount == 0:
                     raise ValueError(f"artist is not booked for event {event_id}")
             check_artist_rules(artist_id)
     except (sqlite3.IntegrityError, ValueError) as e:
@@ -285,8 +298,8 @@ def update_artist(
 @delete_app.command("artist", help="Delete an artist")
 def delete_artist(artist_id: str):
     with db:
-        deleted = db.execute("DELETE FROM artists WHERE id = ?", (artist_id,)).rowcount
-    if not deleted:
+        deleted = db.execute("DELETE FROM artists WHERE id = ?", [artist_id]).rowcount
+    if deleted == 0:
         fail(f"could not delete artist: no artist with id {artist_id}")
     typer.echo(f"deleted artist {artist_id}")
 
@@ -366,7 +379,8 @@ def show_commands():
     typer.echo("Commands:")
     for group in app.registered_groups:
         for command in group.typer_instance.registered_commands:
-            typer.echo(f"  {group.name + ' ' + command.name:<18}{command.help}")
+            name = f"{group.name} {command.name}"
+            typer.echo(f"  {name.ljust(18)}{command.help}")
 
 
 def run_command(line):
