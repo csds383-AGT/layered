@@ -5,6 +5,11 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from email_validator import EmailNotValidError, validate_email
 
+try:
+    import readline  # arrow keys and command history in the shell (Windows has these built in)
+except ImportError:
+    pass
+
 # ======================================================================
 # Database
 # ======================================================================
