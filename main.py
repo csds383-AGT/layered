@@ -384,7 +384,11 @@ def show_commands():
 
 
 def run_command(line):
-    args = shlex.split(line)
+    try:
+        args = shlex.split(line)
+    except ValueError as e: 
+        typer.echo(f"could not read command: {str(e).lower()}", err=True)
+        return
     if args == ["help"]:
         show_commands()
         return
