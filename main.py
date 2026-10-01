@@ -1,8 +1,10 @@
 import shlex
 import sqlite3
-import typer
+from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
+
+import typer
 from email_validator import EmailNotValidError, validate_email
 
 try:
@@ -82,6 +84,10 @@ def fail(message):
     raise typer.Exit(1)
 
 
+def parse_id(custom_id):
+    return None if custom_id is None else str(UUID(custom_id))
+
+
 def to_cents(price):
     try:
         cents = Decimal(price) * 100
@@ -102,6 +108,48 @@ def to_dollars(cents):
 
 def format_ids(ids):
     return ", ".join(ids) if ids else "none"
+
+
+# ======================================================================
+# Database helpers
+# ======================================================================
+
+@contextmanager
+def transaction(action):
+    # runs the block as one transaction, so any error undoes the whole command
+    try:
+        with db:
+            yield
+    except (sqlite3.IntegrityError, ValueError) as e:
+        fail(f"could not {action}: {e}")
+
+
+def find_records(table, record_id, label, order_by="name"):
+    rows = db.execute(
+        f"SELECT * FROM {table} WHERE ? IS NULL OR id = ? ORDER BY {order_by}", [record_id, record_id]
+    ).fetchall()
+    if record_id and not rows:
+        fail(f"no {label} with id {record_id}")
+    return rows
+
+
+def delete_record(table, record_id, label):
+    with db:
+        record_found = db.execute(f"DELETE FROM {table} WHERE id = ?", [record_id]).rowcount > 0
+    if not record_found:
+        fail(f"could not delete {label}: no {label} with id {record_id}")
+    typer.echo(f"deleted {label} {record_id}")
+
+
+def book_artist(event_id, artist_id):
+    db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
+
+
+def unbook_artist(event_id, artist_id):
+    was_booked = db.execute("DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?",
+                            [event_id, artist_id]).rowcount > 0
+    if not was_booked:
+        raise ValueError(f"artist {artist_id} is not booked for event {event_id}")
 
 
 # ======================================================================
@@ -148,30 +196,21 @@ def create_concert_events(
         custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
         artist: list[str] = typer.Option([], help="Artist ID to book for this event (repeatable)"),
 ):
-    try:
-        custom_id = None if custom_id is None else str(UUID(custom_id))
-        with db:
-            # without --id the database generates one, and RETURNING gives back whichever id was used
-            event_id = db.execute(
-                "INSERT INTO concert_events VALUES (COALESCE(?, new_uuid()), ?, ?, ?, ?) RETURNING id",
-                [custom_id, name, description, available_tickets, to_cents(ticket_price)],
-            ).fetchone()["id"]
-            for artist_id in artist:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
-                check_artist_rules(artist_id)
-    except (sqlite3.IntegrityError, ValueError) as e:
-        fail(f"could not create event: {e}")
+    with transaction("create event"):
+        # without --id the database generates one, and RETURNING gives back whichever id was used
+        event_id = db.execute(
+            "INSERT INTO concert_events VALUES (COALESCE(?, new_uuid()), ?, ?, ?, ?) RETURNING id",
+            [parse_id(custom_id), name, description, available_tickets, to_cents(ticket_price)],
+        ).fetchone()["id"]
+        for artist_id in artist:
+            book_artist(event_id, artist_id)
+            check_artist_rules(artist_id)
     typer.echo(f"created event {name} ({event_id})")
 
 
 @show_app.command("concert", help="Show all concert events, or one by ID")
 def show_concert_events(event_id: str | None = typer.Argument(None, help="Show only this event")):
-    # with no id (NULL) the WHERE matches every row
-    events = db.execute(
-        "SELECT * FROM concert_events WHERE ? IS NULL OR id = ? ORDER BY name", [event_id, event_id]
-    ).fetchall()
-    if event_id and not events:
-        fail(f"no event with id {event_id}")
+    events = find_records("concert_events", event_id, "event")
     for event_id, name, description, available_tickets, ticket_price in events:
         artist_rows = db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", [event_id])
         artist_ids = [row["artist_id"] for row in artist_rows]
@@ -192,41 +231,31 @@ def update_concert_events(
         add_artist: list[str] = typer.Option([], help="Artist ID to book for this event (repeatable)"),
         remove_artist: list[str] = typer.Option([], help="Artist ID to unbook from this event (repeatable)"),
 ):
-    try:
+    with transaction("update event"):
         cents = None if ticket_price is None else to_cents(ticket_price)
-        with db:
-            # options left out are None (NULL), so COALESCE keeps the column's current value
-            updated = db.execute(
-                "UPDATE concert_events SET name = COALESCE(?, name), description = COALESCE(?, description), "
-                "available_tickets = COALESCE(?, available_tickets), ticket_price = COALESCE(?, ticket_price) "
-                "WHERE id = ?",
-                [name, description, available_tickets, cents, event_id],
-            ).rowcount
-            if updated == 0:
-                raise ValueError(f"no event with id {event_id}")
-            for artist_id in add_artist:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
-            for artist_id in remove_artist:
-                removed = db.execute("DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?",
-                                     [event_id, artist_id])
-                if removed.rowcount == 0:
-                    raise ValueError(f"artist {artist_id} is not booked for this event")
-            # a new name or price can break the rules for any artist booked on this event
-            booked = db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", [event_id]).fetchall()
-            for row in booked:
-                check_artist_rules(row["artist_id"])
-    except (sqlite3.IntegrityError, ValueError) as e:
-        fail(f"could not update event: {e}")
+        # options left out are None (NULL), so COALESCE keeps the column's current value
+        event_found = db.execute(
+            "UPDATE concert_events SET name = COALESCE(?, name), description = COALESCE(?, description), "
+            "available_tickets = COALESCE(?, available_tickets), ticket_price = COALESCE(?, ticket_price) "
+            "WHERE id = ?",
+            [name, description, available_tickets, cents, event_id],
+        ).rowcount > 0
+        if not event_found:
+            raise ValueError(f"no event with id {event_id}")
+        for artist_id in add_artist:
+            book_artist(event_id, artist_id)
+        for artist_id in remove_artist:
+            unbook_artist(event_id, artist_id)
+        # a new name or price can break the rules for any artist booked on this event
+        booked = db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", [event_id]).fetchall()
+        for row in booked:
+            check_artist_rules(row["artist_id"])
     typer.echo(f"updated event {event_id}")
 
 
 @delete_app.command("concert", help="Delete a concert event")
 def delete_concert_events(event_id: str):
-    with db:
-        deleted = db.execute("DELETE FROM concert_events WHERE id = ?", [event_id]).rowcount
-    if deleted == 0:
-        fail(f"could not delete event: no event with id {event_id}")
-    typer.echo(f"deleted event {event_id}")
+    delete_record("concert_events", event_id, "event")
 
 
 # ======================================================================
@@ -240,28 +269,20 @@ def create_artist(
         custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
         event: list[str] = typer.Option([], help="Event ID to book this artist for (repeatable)"),
 ):
-    try:
-        custom_id = None if custom_id is None else str(UUID(custom_id))
-        with db:
-            artist_id = db.execute(
-                "INSERT INTO artists VALUES (COALESCE(?, new_uuid()), ?, ?) RETURNING id",
-                [custom_id, name, booking_contact],
-            ).fetchone()["id"]
-            for event_id in event:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
-            check_artist_rules(artist_id)
-    except (sqlite3.IntegrityError, ValueError) as e:
-        fail(f"could not create artist: {e}")
+    with transaction("create artist"):
+        artist_id = db.execute(
+            "INSERT INTO artists VALUES (COALESCE(?, new_uuid()), ?, ?) RETURNING id",
+            [parse_id(custom_id), name, booking_contact],
+        ).fetchone()["id"]
+        for event_id in event:
+            book_artist(event_id, artist_id)
+        check_artist_rules(artist_id)
     typer.echo(f"created artist {name} ({artist_id})")
 
 
 @show_app.command("artist", help="Show all artists, or one by ID")
 def show_artists(artist_id: str | None = typer.Argument(None, help="Show only this artist")):
-    artists = db.execute(
-        "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", [artist_id, artist_id]
-    ).fetchall()
-    if artist_id and not artists:
-        fail(f"no artist with id {artist_id}")
+    artists = find_records("artists", artist_id, "artist")
     for artist_id, name, booking_contact in artists:
         event_rows = db.execute("SELECT event_id FROM event_artists WHERE artist_id = ?", [artist_id])
         event_ids = [row["event_id"] for row in event_rows]
@@ -278,35 +299,25 @@ def update_artist(
         add_event: list[str] = typer.Option([], help="Event ID to book this artist for (repeatable)"),
         remove_event: list[str] = typer.Option([], help="Event ID to unbook this artist from (repeatable)"),
 ):
-    try:
-        with db:
-            updated = db.execute(
-                "UPDATE artists SET name = COALESCE(?, name), booking_contact = COALESCE(?, booking_contact) "
-                "WHERE id = ?",
-                [name, booking_contact, artist_id],
-            ).rowcount
-            if updated == 0:
-                raise ValueError(f"no artist with id {artist_id}")
-            for event_id in add_event:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", [event_id, artist_id])
-            for event_id in remove_event:
-                removed = db.execute("DELETE FROM event_artists WHERE event_id = ? AND artist_id = ?",
-                                     [event_id, artist_id])
-                if removed.rowcount == 0:
-                    raise ValueError(f"artist is not booked for event {event_id}")
-            check_artist_rules(artist_id)
-    except (sqlite3.IntegrityError, ValueError) as e:
-        fail(f"could not update artist: {e}")
+    with transaction("update artist"):
+        artist_found = db.execute(
+            "UPDATE artists SET name = COALESCE(?, name), booking_contact = COALESCE(?, booking_contact) "
+            "WHERE id = ?",
+            [name, booking_contact, artist_id],
+        ).rowcount > 0
+        if not artist_found:
+            raise ValueError(f"no artist with id {artist_id}")
+        for event_id in add_event:
+            book_artist(event_id, artist_id)
+        for event_id in remove_event:
+            unbook_artist(event_id, artist_id)
+        check_artist_rules(artist_id)
     typer.echo(f"updated artist {artist_id}")
 
 
 @delete_app.command("artist", help="Delete an artist")
 def delete_artist(artist_id: str):
-    with db:
-        deleted = db.execute("DELETE FROM artists WHERE id = ?", [artist_id]).rowcount
-    if deleted == 0:
-        fail(f"could not delete artist: no artist with id {artist_id}")
-    typer.echo(f"deleted artist {artist_id}")
+    delete_record("artists", artist_id, "artist")
 
 
 # ======================================================================
@@ -391,7 +402,7 @@ def show_commands():
 def run_command(line):
     try:
         args = shlex.split(line)
-    except ValueError as e: 
+    except ValueError as e:
         typer.echo(f"could not read command: {str(e).lower()}", err=True)
         return
     if args == ["help"]:
