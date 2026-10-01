@@ -12,7 +12,7 @@ SCHEMA = """
              name              TEXT    NOT NULL CHECK (length(name) <= 2000),
              description       TEXT    NOT NULL CHECK (length(description) <= 10000),
              available_tickets INTEGER NOT NULL CHECK (available_tickets >= 0),
-             ticket_price      INTEGER NOT NULL CHECK (ticket_price > 0), -- in cents (SQLite has no exact decimal type)
+             ticket_price      INTEGER NOT NULL CHECK (ticket_price > 0),
              CONSTRAINT sold_out_event_price_cannot_exceed_100 CHECK (available_tickets > 0 OR ticket_price <= 10000)
          );
 
@@ -74,7 +74,7 @@ def check_artist_rules(artist_id):
         raise ValueError(f"artist {artist_id}'s total ticket prices cannot exceed $500,000.00")
 
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False)
 create_app = typer.Typer()
 app.add_typer(create_app, name="create")
 show_app = typer.Typer()
@@ -85,13 +85,13 @@ delete_app = typer.Typer()
 app.add_typer(delete_app, name="delete")
 
 
-@create_app.command("concert")
+@create_app.command("concert", help="Create a concert event")
 def create_concert_events(
         name: str,
         description: str,
         available_tickets: int,
         ticket_price: str = typer.Argument(help="Ticket price, e.g. 25.50"),
-        custom_id: str | None = typer.Option(None, "--id", help="Custom UUID (generated if omitted)"),
+        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
         artist: list[str] = typer.Option([], help="Artist ID to book for this event (repeatable)"),
 ):
     try:
@@ -110,11 +110,11 @@ def create_concert_events(
     typer.echo(f"created event {name} ({event_id})")
 
 
-@create_app.command("artist")
+@create_app.command("artist", help="Create an artist")
 def create_artist(
         name: str,
         booking_contact: str,
-        custom_id: str | None = typer.Option(None, "--id", help="Custom UUID (generated if omitted)"),
+        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
         event: list[str] = typer.Option([], help="Event ID to book this artist for (repeatable)"),
 ):
     try:
@@ -132,7 +132,7 @@ def create_artist(
     typer.echo(f"created artist {name} ({artist_id})")
 
 
-@show_app.command("concert")
+@show_app.command("concert", help="Show all concert events, or one by ID")
 def show_concert_events(event_id: str | None = typer.Argument(None, help="Show only this event")):
     # with no id (NULL) the WHERE matches every row
     events = db.execute(
@@ -149,7 +149,7 @@ def show_concert_events(event_id: str | None = typer.Argument(None, help="Show o
         typer.echo(f"    artist ids: {', '.join(artist_ids) or 'none'}")
 
 
-@show_app.command("artist")
+@show_app.command("artist", help="Show all artists, or one by ID")
 def show_artists(artist_id: str | None = typer.Argument(None, help="Show only this artist")):
     artists = db.execute(
         "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", (artist_id, artist_id)
@@ -163,7 +163,7 @@ def show_artists(artist_id: str | None = typer.Argument(None, help="Show only th
         typer.echo(f"    event ids: {', '.join(event_ids) or 'none'}")
 
 
-@update_app.command("concert")
+@update_app.command("concert", help="Update a concert event")
 def update_concert_events(
         event_id: str,
         name: str | None = typer.Option(None, help="New event name"),
@@ -200,7 +200,7 @@ def update_concert_events(
     typer.echo(f"updated event {event_id}")
 
 
-@update_app.command("artist")
+@update_app.command("artist", help="Update an artist")
 def update_artist(
         artist_id: str,
         name: str | None = typer.Option(None, help="New artist name"),
@@ -230,7 +230,7 @@ def update_artist(
     typer.echo(f"updated artist {artist_id}")
 
 
-@delete_app.command("concert")
+@delete_app.command("concert", help="Delete a concert event")
 def delete_concert_events(event_id: str):
     with db:
         deleted = db.execute("DELETE FROM concert_events WHERE id = ?", (event_id,)).rowcount
@@ -239,7 +239,7 @@ def delete_concert_events(event_id: str):
     typer.echo(f"deleted event {event_id}")
 
 
-@delete_app.command("artist")
+@delete_app.command("artist", help="Delete an artist")
 def delete_artist(artist_id: str):
     with db:
         deleted = db.execute("DELETE FROM artists WHERE id = ?", (artist_id,)).rowcount
@@ -248,17 +248,45 @@ def delete_artist(artist_id: str):
     typer.echo(f"deleted artist {artist_id}")
 
 
+def show_commands():
+    typer.echo("Commands:")
+    for group in app.registered_groups:
+        for command in group.typer_instance.registered_commands:
+            typer.echo(f"  {group.name + ' ' + command.name:<18}{command.help}")
+
+
+def run_command(line):
+    args = shlex.split(line)
+    if args == ["help"]:
+        show_commands()
+        return
+    if args and args[0] == "help":
+        args = args[1:] + ["--help"]
+    if args and args[0] == "shell":
+        typer.echo("You're already in the shell.")
+        return
+    try:
+        app(args, prog_name="")
+    except SystemExit:
+        pass
+
+
 # typer main.py run shell
-@app.command("shell")
+@app.command("shell", help="Start an interactive session", hidden=True)
 def shell():
+    typer.echo("FestHub - Team AGT (Aaron, Graham, Thao)")
+    run_command("help")
+    typer.echo("Examples:")
+    typer.echo('  create concert "Live at Aaron\'s Basement" "Thao on drums" 30 5.00')
+    typer.echo("  show concert")
+    typer.echo('  update concert <event-id> --name "Live at Graham\'s Garage"')
+    typer.echo("  delete concert <event-id>")
+    typer.echo("Type help <command> for details, or exit to quit.")
     while True:
         line = input("festhub> ")
         if line.strip() == "exit":
             break
-        try:
-            app(shlex.split(line))
-        except SystemExit:
-            pass
+        run_command(line)
 
 
 if __name__ == "__main__":
