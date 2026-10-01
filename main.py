@@ -5,22 +5,26 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from email_validator import EmailNotValidError, validate_email
 
+# ======================================================================
+# Database
+# ======================================================================
+
 SCHEMA = """
          CREATE TABLE concert_events
          (
              id                TEXT PRIMARY KEY NOT NULL DEFAULT (new_uuid()),
-             name              TEXT    NOT NULL CHECK (length(name) <= 2000),
-             description       TEXT    NOT NULL CHECK (length(description) <= 10000),
-             available_tickets INTEGER NOT NULL CHECK (available_tickets >= 0),
-             ticket_price      INTEGER NOT NULL CHECK (ticket_price > 0),
+             name              TEXT             NOT NULL CHECK (length(name) <= 2000),
+             description       TEXT             NOT NULL CHECK (length(description) <= 10000),
+             available_tickets INTEGER          NOT NULL CHECK (available_tickets >= 0),
+             ticket_price      INTEGER          NOT NULL CHECK (ticket_price > 0),
              CONSTRAINT sold_out_event_price_cannot_exceed_100 CHECK (available_tickets > 0 OR ticket_price <= 10000)
          );
 
          CREATE TABLE artists
          (
              id              TEXT PRIMARY KEY NOT NULL DEFAULT (new_uuid()),
-             name            TEXT NOT NULL CHECK (length(name) <= 2000),
-             booking_contact TEXT NOT NULL CHECK (is_email(booking_contact))
+             name            TEXT             NOT NULL CHECK (length(name) <= 2000),
+             booking_contact TEXT             NOT NULL CHECK (is_email(booking_contact))
          );
 
          CREATE TABLE event_artists
@@ -46,6 +50,9 @@ db.create_function("is_email", 1, is_email, deterministic=True)
 db.execute("PRAGMA foreign_keys = ON")
 db.executescript(SCHEMA)
 
+# ======================================================================
+# Errors and input checks
+# ======================================================================
 
 READABLE_ERRORS = {
     "CHECK constraint failed: is_email(booking_contact)": "booking contact must be a valid email address",
@@ -79,6 +86,10 @@ def to_cents(price):
     return int(cents)
 
 
+# ======================================================================
+# Business rules
+# ======================================================================
+
 def check_artist_rules(artist_id):
     duplicate_names, total_price = db.execute(
         "SELECT COUNT(*) - COUNT(DISTINCT e.name), SUM(e.ticket_price) "
@@ -91,6 +102,10 @@ def check_artist_rules(artist_id):
         raise ValueError(f"artist {artist_id}'s total ticket prices cannot exceed $500,000.00")
 
 
+# ======================================================================
+# Typer command groups
+# ======================================================================
+
 app = typer.Typer(add_completion=False)
 create_app = typer.Typer()
 app.add_typer(create_app, name="create")
@@ -101,6 +116,10 @@ app.add_typer(update_app, name="update")
 delete_app = typer.Typer()
 app.add_typer(delete_app, name="delete")
 
+
+# ======================================================================
+# Concert event commands
+# ======================================================================
 
 @create_app.command("concert", help="Create a concert event")
 def create_concert_events(
@@ -127,28 +146,6 @@ def create_concert_events(
     typer.echo(f"created event {name} ({event_id})")
 
 
-@create_app.command("artist", help="Create an artist")
-def create_artist(
-        name: str,
-        booking_contact: str,
-        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
-        event: list[str] = typer.Option([], help="Event ID to book this artist for (repeatable)"),
-):
-    try:
-        custom_id = None if custom_id is None else str(UUID(custom_id))
-        with db:
-            (artist_id,) = db.execute(
-                "INSERT INTO artists VALUES (COALESCE(?, new_uuid()), ?, ?) RETURNING id",
-                (custom_id, name, booking_contact),
-            ).fetchone()
-            for event_id in event:
-                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
-            check_artist_rules(artist_id)
-    except (sqlite3.IntegrityError, ValueError) as e:
-        fail(f"could not create artist: {e}")
-    typer.echo(f"created artist {name} ({artist_id})")
-
-
 @show_app.command("concert", help="Show all concert events, or one by ID")
 def show_concert_events(event_id: str | None = typer.Argument(None, help="Show only this event")):
     # with no id (NULL) the WHERE matches every row
@@ -158,26 +155,13 @@ def show_concert_events(event_id: str | None = typer.Argument(None, help="Show o
     if event_id and not events:
         fail(f"no event with id {event_id}")
     for event_id, name, description, available_tickets, ticket_price in events:
-        artist_ids = [row[0] for row in db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", (event_id,))]
+        artist_ids = [row[0] for row in
+                      db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", (event_id,))]
         typer.echo(f"- {name} ({event_id})")
         typer.echo(f"    description: {description}")
         typer.echo(f"    available tickets: {available_tickets}")
         typer.echo(f"    ticket price: ${ticket_price / 100:,.2f}")
         typer.echo(f"    artist ids: {', '.join(artist_ids) or 'none'}")
-
-
-@show_app.command("artist", help="Show all artists, or one by ID")
-def show_artists(artist_id: str | None = typer.Argument(None, help="Show only this artist")):
-    artists = db.execute(
-        "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", (artist_id, artist_id)
-    ).fetchall()
-    if artist_id and not artists:
-        fail(f"no artist with id {artist_id}")
-    for artist_id, name, booking_contact in artists:
-        event_ids = [row[0] for row in db.execute("SELECT event_id FROM event_artists WHERE artist_id = ?", (artist_id,))]
-        typer.echo(f"- {name} ({artist_id})")
-        typer.echo(f"    booking contact: {booking_contact}")
-        typer.echo(f"    event ids: {', '.join(event_ids) or 'none'}")
 
 
 @update_app.command("concert", help="Update a concert event")
@@ -210,11 +194,62 @@ def update_concert_events(
                 ).rowcount:
                     raise ValueError(f"artist {artist_id} is not booked for this event")
             # a new name or price can break the rules for any artist booked on this event
-            for (artist_id,) in db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?", (event_id,)).fetchall():
+            for (artist_id,) in db.execute("SELECT artist_id FROM event_artists WHERE event_id = ?",
+                                           (event_id,)).fetchall():
                 check_artist_rules(artist_id)
     except (sqlite3.IntegrityError, ValueError) as e:
         fail(f"could not update event: {e}")
     typer.echo(f"updated event {event_id}")
+
+
+@delete_app.command("concert", help="Delete a concert event")
+def delete_concert_events(event_id: str):
+    with db:
+        deleted = db.execute("DELETE FROM concert_events WHERE id = ?", (event_id,)).rowcount
+    if not deleted:
+        fail(f"could not delete event: no event with id {event_id}")
+    typer.echo(f"deleted event {event_id}")
+
+
+# ======================================================================
+# Artist commands
+# ======================================================================
+
+@create_app.command("artist", help="Create an artist")
+def create_artist(
+        name: str,
+        booking_contact: str,
+        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
+        event: list[str] = typer.Option([], help="Event ID to book this artist for (repeatable)"),
+):
+    try:
+        custom_id = None if custom_id is None else str(UUID(custom_id))
+        with db:
+            (artist_id,) = db.execute(
+                "INSERT INTO artists VALUES (COALESCE(?, new_uuid()), ?, ?) RETURNING id",
+                (custom_id, name, booking_contact),
+            ).fetchone()
+            for event_id in event:
+                db.execute("INSERT INTO event_artists VALUES (?, ?)", (event_id, artist_id))
+            check_artist_rules(artist_id)
+    except (sqlite3.IntegrityError, ValueError) as e:
+        fail(f"could not create artist: {e}")
+    typer.echo(f"created artist {name} ({artist_id})")
+
+
+@show_app.command("artist", help="Show all artists, or one by ID")
+def show_artists(artist_id: str | None = typer.Argument(None, help="Show only this artist")):
+    artists = db.execute(
+        "SELECT * FROM artists WHERE ? IS NULL OR id = ? ORDER BY name", (artist_id, artist_id)
+    ).fetchall()
+    if artist_id and not artists:
+        fail(f"no artist with id {artist_id}")
+    for artist_id, name, booking_contact in artists:
+        event_ids = [row[0] for row in
+                     db.execute("SELECT event_id FROM event_artists WHERE artist_id = ?", (artist_id,))]
+        typer.echo(f"- {name} ({artist_id})")
+        typer.echo(f"    booking contact: {booking_contact}")
+        typer.echo(f"    event ids: {', '.join(event_ids) or 'none'}")
 
 
 @update_app.command("artist", help="Update an artist")
@@ -247,15 +282,6 @@ def update_artist(
     typer.echo(f"updated artist {artist_id}")
 
 
-@delete_app.command("concert", help="Delete a concert event")
-def delete_concert_events(event_id: str):
-    with db:
-        deleted = db.execute("DELETE FROM concert_events WHERE id = ?", (event_id,)).rowcount
-    if not deleted:
-        fail(f"could not delete event: no event with id {event_id}")
-    typer.echo(f"deleted event {event_id}")
-
-
 @delete_app.command("artist", help="Delete an artist")
 def delete_artist(artist_id: str):
     with db:
@@ -264,6 +290,77 @@ def delete_artist(artist_id: str):
         fail(f"could not delete artist: no artist with id {artist_id}")
     typer.echo(f"deleted artist {artist_id}")
 
+
+# ======================================================================
+# Category commands
+# ======================================================================
+
+@create_app.command("category", help="Create a festival booking category")
+def create_category(
+        name: str,
+        description: str,
+        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
+        event: list[str] = typer.Option([], help="Event ID to add to this category (repeatable)"),
+):
+    fail("create category is not implemented yet")
+
+
+@show_app.command("category", help="Show all categories, or one by ID")
+def show_categories(category_id: str | None = typer.Argument(None, help="Show only this category")):
+    fail("show category is not implemented yet")
+
+
+@update_app.command("category", help="Update a category")
+def update_category(
+        category_id: str,
+        name: str | None = typer.Option(None, help="New category name"),
+        description: str | None = typer.Option(None, help="New category description"),
+        add_event: list[str] = typer.Option([], help="Event ID to add to this category (repeatable)"),
+        remove_event: list[str] = typer.Option([], help="Event ID to remove from this category (repeatable)"),
+):
+    fail("update category is not implemented yet")
+
+
+@delete_app.command("category", help="Delete a category")
+def delete_category(category_id: str):
+    fail("delete category is not implemented yet")
+
+
+# ======================================================================
+# Media commands
+# ======================================================================
+
+@create_app.command("media", help="Create a promotional media asset")
+def create_media(
+        event_id: str,
+        image_url: str,
+        custom_id: str | None = typer.Option(None, "--id", help="Custom ID"),
+):
+    fail("create media is not implemented yet")
+
+
+@show_app.command("media", help="Show all media, or one by ID")
+def show_media(media_id: str | None = typer.Argument(None, help="Show only this media asset")):
+    fail("show media is not implemented yet")
+
+
+@update_app.command("media", help="Update a media asset")
+def update_media(
+        media_id: str,
+        event_id: str | None = typer.Option(None, help="New parent event ID"),
+        image_url: str | None = typer.Option(None, help="New image URL"),
+):
+    fail("update media is not implemented yet")
+
+
+@delete_app.command("media", help="Delete a media asset")
+def delete_media(media_id: str):
+    fail("delete media is not implemented yet")
+
+
+# ======================================================================
+# Interactive shell
+# ======================================================================
 
 def show_commands():
     typer.echo("Commands:")
