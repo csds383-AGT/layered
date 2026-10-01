@@ -47,7 +47,24 @@ db.execute("PRAGMA foreign_keys = ON")
 db.executescript(SCHEMA)
 
 
+READABLE_ERRORS = {
+    "CHECK constraint failed: is_email(booking_contact)": "booking contact must be a valid email address",
+    "CHECK constraint failed: length(name) <= 2000": "name must be 2000 characters or fewer",
+    "CHECK constraint failed: length(description) <= 10000": "description must be 10000 characters or fewer",
+    "CHECK constraint failed: available_tickets >= 0": "available tickets cannot be negative",
+    "CHECK constraint failed: ticket_price > 0": "ticket price must be more than 0",
+    "CHECK constraint failed: sold_out_event_price_cannot_exceed_100": "a sold out event (0 tickets) cannot cost more than $100.00",
+    "UNIQUE constraint failed: concert_events.id": "an event with that ID already exists",
+    "UNIQUE constraint failed: artists.id": "an artist with that ID already exists",
+    "UNIQUE constraint failed: event_artists.event_id, event_artists.artist_id": "that artist is already booked for this event",
+    "FOREIGN KEY constraint failed": "that artist or event ID does not exist",
+    "badly formed hexadecimal UUID string": "custom ID must be a valid UUID",
+}
+
+
 def fail(message):
+    for error, readable in READABLE_ERRORS.items():
+        message = message.replace(error, readable)
     typer.echo(message, err=True)
     raise typer.Exit(1)
 
