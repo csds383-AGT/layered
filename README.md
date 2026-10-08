@@ -19,7 +19,7 @@
    docker compose down
    ```
 
-your data is kept between runs. to start over with an empty database, use `docker compose down -v` instead. do this once whenever `db/schema.sql` changes too.
+the database starts with the demo's events, artists, categories, and media from `db/seed.sql`. your data is kept between runs. to start over with just the demo data, use `docker compose down -v` instead. do this once whenever `db/schema.sql` or `db/seed.sql` changes too.
 
 on windows, use `.venv\Scripts\` instead of `.venv/bin/`.
 
