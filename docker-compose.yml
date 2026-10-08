@@ -1,6 +1,8 @@
 services:
   db:
-    image: postgres:18
+    build:
+      context: .
+      target: db
     environment:
       POSTGRES_USER: festhub
       POSTGRES_PASSWORD: festhub
@@ -10,12 +12,27 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - db-data:/var/lib/postgresql
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "festhub"]
       interval: 2s
       retries: 15
+
+  # logic and web are placeholders for the gRPC tiers, so they only start with --profile grpc
+  logic:
+    build:
+      context: .
+      target: logic
+    profiles: [grpc]
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: .
+      target: web
+    profiles: [grpc]
+    depends_on:
+      - logic
 
 volumes:
   db-data:
