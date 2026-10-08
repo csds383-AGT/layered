@@ -6,6 +6,7 @@ services:
       POSTGRES_PASSWORD: festhub
       POSTGRES_DB: festhub
     ports:
+      # ip:port on your machine : port inside the container
       - "127.0.0.1:5433:5432"
     volumes:
       - db-data:/var/lib/postgresql

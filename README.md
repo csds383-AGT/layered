@@ -22,3 +22,5 @@
 your data is kept between runs. to start over with an empty database, use `docker compose down -v` instead. do this once whenever `db/schema.sql` changes too.
 
 on windows, use `.venv\Scripts\` instead of `.venv/bin/`.
+
+if you want to access the postgres database  in your ide, use this config: ![img.png](img.png)

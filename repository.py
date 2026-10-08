@@ -1,14 +1,16 @@
 import os
 from contextlib import contextmanager
+from typing import Any
 from uuid import UUID
 
 import psycopg
-from psycopg.rows import dict_row, scalar_row
+from psycopg.rows import namedtuple_row, scalar_row
+from psycopg.sql import SQL, Identifier, Placeholder
 from psycopg.types.string import TextLoader
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://festhub:festhub@localhost:5433/festhub")
 
-db = psycopg.connect(DATABASE_URL, autocommit=True, row_factory=dict_row)
+db = psycopg.Connection[Any].connect(DATABASE_URL, autocommit=True, row_factory=namedtuple_row)
 db.adapters.register_loader("uuid", TextLoader)
 
 
@@ -28,48 +30,52 @@ def to_uuid(record_id):
 
 
 def get(table, record_id):
-    return db.execute(f"SELECT * FROM {table} WHERE id = %s", [to_uuid(record_id)]).fetchone()
+    query = SQL("SELECT * FROM {} WHERE id = %s").format(Identifier(table))
+    return db.execute(query, [to_uuid(record_id)]).fetchone()
 
 
 def find(table, record_id, order_by):
-    if record_id is None:
-        return db.execute(f"SELECT * FROM {table} ORDER BY {order_by}, id").fetchall()
-    return db.execute(f"SELECT * FROM {table} WHERE id = %s", [to_uuid(record_id)]).fetchall()
+    if record_id is not None:
+        row = get(table, record_id)
+        return [row] if row else []
+    query = SQL("SELECT * FROM {} ORDER BY {}, id").format(Identifier(table), Identifier(order_by))
+    return db.execute(query).fetchall()
 
 
-def insert(table, custom_id, **values):
+def insert(table, custom_id, record):
     # returns None when the custom id is already taken
-    columns = ", ".join(values)
-    placeholders = ", ".join(["%s"] * len(values))
-    row = db.execute(
-        f"INSERT INTO {table} (id, {columns}) VALUES (COALESCE(%s, uuidv7()), {placeholders}) "
-        "ON CONFLICT (id) DO NOTHING RETURNING id",
-        [custom_id, *values.values()],
-    ).fetchone()
-    return row and row["id"]
+    values = vars(record)
+    query = SQL(
+        "INSERT INTO {} (id, {}) VALUES (COALESCE(%(id)s, uuidv7()), {}) ON CONFLICT (id) DO NOTHING RETURNING id"
+    ).format(Identifier(table), SQL(", ").join(map(Identifier, values)), SQL(", ").join(map(Placeholder, values)))
+    row = db.execute(query, dict(values, id=custom_id)).fetchone()
+    return None if row is None else row.id
 
 
-def update(table, record_id, **values):
+def update(table, record_id, changes):
     # values left as None keep the column's current value
-    assignments = ", ".join(f"{column} = COALESCE(%s, {column})" for column in values)
-    return db.execute(
-        f"UPDATE {table} SET {assignments} WHERE id = %s RETURNING *", [*values.values(), to_uuid(record_id)]
-    ).fetchone()
+    values = vars(changes)
+    assignments = SQL(", ").join(
+        SQL("{0} = COALESCE({1}, {0})").format(Identifier(column), Placeholder(column)) for column in values
+    )
+    query = SQL("UPDATE {} SET {} WHERE id = %(id)s RETURNING *").format(Identifier(table), assignments)
+    return db.execute(query, dict(values, id=to_uuid(record_id))).fetchone()
 
 
 def delete(table, record_id):
-    return db.execute(f"DELETE FROM {table} WHERE id = %s", [to_uuid(record_id)]).rowcount > 0
+    query = SQL("DELETE FROM {} WHERE id = %s").format(Identifier(table))
+    return db.execute(query, [to_uuid(record_id)]).rowcount > 0
 
 
 def link(table, event_id, other_id):
     # returns False when the two are already linked
-    return db.execute(f"INSERT INTO {table} VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                      [to_uuid(event_id), to_uuid(other_id)]).rowcount > 0
+    query = SQL("INSERT INTO {} VALUES (%s, %s) ON CONFLICT DO NOTHING").format(Identifier(table))
+    return db.execute(query, [to_uuid(event_id), to_uuid(other_id)]).rowcount > 0
 
 
 def unlink(table, column, event_id, other_id):
-    return db.execute(f"DELETE FROM {table} WHERE event_id = %s AND {column} = %s",
-                      [to_uuid(event_id), to_uuid(other_id)]).rowcount > 0
+    query = SQL("DELETE FROM {} WHERE event_id = %s AND {} = %s").format(Identifier(table), Identifier(column))
+    return db.execute(query, [to_uuid(event_id), to_uuid(other_id)]).rowcount > 0
 
 
 def artist_booking_summary(artist_id):

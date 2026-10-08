@@ -66,13 +66,13 @@ def show_concert_events(event_id: str | None = typer.Argument(None, help="Show o
     if not events:
         typer.echo("no concert events yet")
     for event in events:
-        typer.echo(f"- {event['name']} ({event['id']})")
-        typer.echo(f"    description: {event['description']}")
-        typer.echo(f"    available tickets: {event['available_tickets']}")
-        typer.echo(f"    ticket price: ${event['ticket_price'] / 100:,.2f}")
-        typer.echo(f"    artist ids: {format_ids(event['artist_ids'])}")
-        typer.echo(f"    category ids: {format_ids(event['category_ids'])}")
-        typer.echo(f"    media ids: {format_ids(event['media_ids'])}")
+        typer.echo(f"- {event.name} ({event.id})")
+        typer.echo(f"    description: {event.description}")
+        typer.echo(f"    available tickets: {event.available_tickets}")
+        typer.echo(f"    ticket price: ${event.ticket_price / 100:,.2f}")
+        typer.echo(f"    artist ids: {format_ids(event.artist_ids)}")
+        typer.echo(f"    category ids: {format_ids(event.category_ids)}")
+        typer.echo(f"    media ids: {format_ids(event.media_ids)}")
 
 
 @update_app.command("concert", help="Update a concert event")
@@ -131,9 +131,9 @@ def show_artists(artist_id: str | None = typer.Argument(None, help="Show only th
     if not artists:
         typer.echo("no artists yet")
     for artist in artists:
-        typer.echo(f"- {artist['name']} ({artist['id']})")
-        typer.echo(f"    booking contact: {artist['booking_contact']}")
-        typer.echo(f"    event ids: {format_ids(artist['event_ids'])}")
+        typer.echo(f"- {artist.name} ({artist.id})")
+        typer.echo(f"    booking contact: {artist.booking_contact}")
+        typer.echo(f"    event ids: {format_ids(artist.event_ids)}")
 
 
 @update_app.command("artist", help="Update an artist")
@@ -180,9 +180,9 @@ def show_categories(category_id: str | None = typer.Argument(None, help="Show on
     if not categories:
         typer.echo("no categories yet")
     for category in categories:
-        typer.echo(f"- {category['name']} ({category['id']})")
-        typer.echo(f"    description: {category['description']}")
-        typer.echo(f"    event ids: {format_ids(category['event_ids'])}")
+        typer.echo(f"- {category.name} ({category.id})")
+        typer.echo(f"    description: {category.description}")
+        typer.echo(f"    event ids: {format_ids(category.event_ids)}")
 
 
 @update_app.command("category", help="Update a category")
@@ -228,8 +228,8 @@ def show_media(media_id: str | None = typer.Argument(None, help="Show only this 
     if not media_assets:
         typer.echo("no media yet")
     for media in media_assets:
-        typer.echo(f"- {media['image_url']} ({media['id']})")
-        typer.echo(f"    event id: {media['event_id']}")
+        typer.echo(f"- {media.image_url} ({media.id})")
+        typer.echo(f"    event id: {media.event_id}")
 
 
 @update_app.command("media", help="Update a media asset")
