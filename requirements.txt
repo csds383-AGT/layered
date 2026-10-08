@@ -1,2 +1,3 @@
 typer
 email-validator
+psycopg[binary]

@@ -14,6 +14,7 @@
         pip
         typer
         email-validator
+        psycopg
       ]);
     in
     {
