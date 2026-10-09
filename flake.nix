@@ -9,12 +9,14 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      virtualisation.docker.enable = true;
 
       pythonEnv = pkgs.python3.withPackages (ps: with ps; [
         pip
         typer
         email-validator
         psycopg
+        flask
       ]);
     in
     {
@@ -22,6 +24,7 @@
         name = "python";
         buildInputs = [
           pythonEnv
+          pkgs.docker
         ];
       };
     };
