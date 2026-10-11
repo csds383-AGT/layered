@@ -446,16 +446,16 @@
             </div>
             <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
         </div>
-
+                <div class="meta-item"><b>Id:</b> {{ concert.id }}</div>
                 <div class="card-meta">
-                    <div class="meta-item">
+                    <div class="meta-item"> 
                         {% if concert.available_tickets == 0 %}
                             Sold out
                         {% else %}
                             {{ concert.available_tickets }} Tickets Available
                         {% endif %}
                     </div>
-                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item.name }} {% endfor %}</div>
+                    <div class="meta-item"><b>Categories: </b> {% for item in concert.categories %} {{ item.name }} {% endfor %}</div>
                     <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item.name }} {% endfor %}</div>
                 </div>
 
