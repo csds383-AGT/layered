@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FestHub - Team AGT</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 36px;
+            color: #333;
+        }
+        
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .nav-links a {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .nav-links a:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 95, 217, 0.4);
+        }
+        
+        .dashboard-link {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+        }
+        
+        .dashboard-link:hover {
+            box-shadow: 0 5px 15px rgba(22, 163, 74, 0.4) !important;
+        }
+        
+        .logout-link {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+        }
+        
+        .logout-link:hover {
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4) !important;
+        }
+        
+        hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 30px 0;
+        }
+        
+        .content {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎸 FestHub Main Page</h1>
+        </div>
+        
+        <div class="nav-links">
+            <a href="/concert">Concerts</a>
+            <a href="/create">Artists</a>
+            <a href="/create">Category</a>
+            <a href="/create">Media</a>
+        </div>
+        
+        <hr>
+        
+        <div class="content">
+            <p>Festhub was made to orginize concerts and tell users who is where</p>
+            <p>Navigate using the buttons above to get started.</p>
+        </div>
+        
+    </div>
+</body>
+</html>
