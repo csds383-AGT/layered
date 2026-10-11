@@ -94,12 +94,14 @@ def artist_page():
     sample_return = """
     [
         {
+        "id": "eeeeeeee-0000-4000-8000-000000000004",
         "name": "Kavin!!!",
         "booking_contact": "kavin@example.com",
         "event_ids": ["eeeeeeee-0000-4000-8000-000000000002"],
         "events": ["CWRU Jammy Jam"]
         },
         {
+        "id": "eeeeeeee-0000-4000-8000-000000000005",
         "name": "Evil Kavin >:)",
         "booking_contact": "kavin@example.com",
         "event_ids": ["eeeeeeee-0000-4000-8000-000000000003"],
@@ -114,6 +116,74 @@ def artist_page():
     # render page with the goods
     return render_template("artist.html", artists=reply)
 
+@app.route("/category")
+def catagory_page():
+    # ask server for info
+    raw_returns = "{}" # a really big list of concerts ig
+
+    # Replace stuff here with the id's later
+    sample_return = """
+[
+  {
+    "id": "eeeeeeee-0000-4000-8000-000000000001",
+    "name": "Just Drums",
+    "description": "High energy percussion-focused sets and solo drumming sessions",
+    "event_ids": [
+      "eeeeeeee-0000-4000-8000-000000000002"
+    ]
+  },
+  {
+    "id": "eeeeeeee-0000-4000-8000-000000000002",
+    "name": "Vocal",
+    "description": "A cappella, choral, and solo vocal performances",
+    "event_ids": [
+      "eeeeeeee-0000-4000-8000-000000000003"
+    ]
+  },
+  {
+    "id": "eeeeeeee-0000-4000-8000-000000000003",
+    "name": "Electronic & Breakcore",
+    "description": "Fast tempo synth, samples, and experimental beats",
+    "event_ids": [
+      "eeeeeeee-0000-4000-8000-000000000002",
+      "eeeeeeee-0000-4000-8000-000000000003"
+    ]
+  }
+]
+"""
+
+    reply = decoder.decode(sample_return)
+    # all of these better be strings so help me god
+
+    # render page with the goods
+    return render_template("category.html", categories=reply)
+
+@app.route("/media")
+def media_page():
+    # ask server for info
+    raw_returns = "{}" # a really big list of concerts ig
+
+    # Replace stuff here with the id's later
+    sample_return = """
+[
+  {
+    "id": "eeeeeeee-0000-4000-8000-000000000002",
+    "image_url": "Break Core 3",
+    "event_id": "eeeeeeee-0000-4000-8000-000000000002"
+  },
+  {
+    "id": "eeeeeeee-0000-4000-8000-000000000003",
+    "image_url": "raw tunes",
+    "event_id": "eeeeeeee-0000-4000-8000-000000000003"
+  }
+]
+"""
+
+    reply = decoder.decode(sample_return)
+    # all of these better be strings so help me god
+
+    # render page with the goods
+    return render_template("media.html", media_assets=reply)
 
 # ======================================================================
 # Api Segments
@@ -142,7 +212,7 @@ def delete_concert():
 # Category
 @app.route("/api/category/create", methods=['POST'])
 def create_category():
-    return "Success"
+    return "Success" 
 
 @app.route("/api/category/update", methods=['POST'])
 def update_category():

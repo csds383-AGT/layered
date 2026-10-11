@@ -308,6 +308,24 @@
             color: white;
             transform: translateY(-1px);
         }
+        .btn-delete {
+            background: rgba(220, 38, 38, 0.1);
+            color: #dc2626;
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+            color: white;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -325,13 +343,13 @@
         {% for concert in concerts %}
             <div class="concert-card">
             <div class="card-header">
-                <div class="card-title-group">
-                    <div class="card-name">{{ concert.name }}</div>
-                    <!-- Update Button right next to concert name -->
-                    <button type="button" class="btn-edit" onclick='openUpdateModal({{ concert | tojson }})'>✏️ Edit</button>
-                </div>
-                <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
+            <div class="card-title-group">
+                <div class="card-name">{{ concert.name }}</div>
+                <button type="button" class="btn-edit" onclick='openUpdateModal({{ concert | tojson }})'>✏️ Edit</button>
+                <button type="button" class="btn-delete" onclick='deleteConcert("{{ concert.id }}", "{{ concert.name }}")'>🗑️ Delete</button>
             </div>
+            <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
+        </div>
 
                 <div class="card-meta">
                     <div class="meta-item">
@@ -599,6 +617,31 @@
         } catch (error) {
             console.error('Submit error:', error);
             alert('Failed to connect to web server endpoint.');
+        }
+    }
+    async function deleteConcert(eventId, eventName) {
+        if (!confirm(`Are you sure you want to delete "${eventName}"?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/concert/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ event_id: eventId })
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                const err = await response.json();
+                alert('Error deleting concert: ' + (err.message || response.statusText));
+            }
+        } catch (error) {
+            console.error('Delete request error:', error);
+            alert('Failed to send delete request to server.');
         }
     }
 </script>

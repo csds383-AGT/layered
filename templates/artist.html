@@ -2,23 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artist Catalog</title>
     <style>
         body {
             margin: 0;
-            padding: 30px;
+            padding: 30px 20px;
+            min-height: 100vh;
             background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #333;
         }
 
         .container {
-            max-width: 600px;
+            max-width: 650px;
             margin: 0 auto;
             background: white;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            padding: 28px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
         }
 
         .top-bar {
@@ -26,97 +28,401 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
         }
 
-        .top-bar a {
+        .top-bar h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #1e1e2d;
+        }
+
+        .nav-link {
             color: #4a5fd9;
             text-decoration: none;
             font-weight: 600;
+            font-size: 14px;
+            transition: opacity 0.2s;
         }
 
-        /* Standard List Box Style */
+        .nav-link:hover { opacity: 0.8; }
+
+        /* Catalog List Box */
         select.artist-listbox {
             width: 100%;
-            height: 180px;
-            padding: 8px;
+            height: 220px;
+            padding: 10px;
             border: 2px solid #e0e0e0;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
+            font-family: inherit;
             margin-bottom: 20px;
+            background: #fafafa;
         }
 
-        .form-group {
-            margin-bottom: 12px;
+        select.artist-listbox:focus {
+            outline: none;
+            border-color: #4a5fd9;
         }
 
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: #555;
-        }
-
-        .form-group input {
-            width: 100%;
+        select.artist-listbox option {
             padding: 8px;
-            border: 1px solid #ccc;
             border-radius: 4px;
-            box-sizing: border-box;
+            margin-bottom: 2px;
         }
 
+        /* Action Controls */
         .actions {
             display: flex;
             gap: 10px;
-            margin-top: 16px;
+            justify-content: flex-end;
         }
 
-        button {
-            padding: 8px 16px;
-            border-radius: 6px;
+        .btn {
+            padding: 10px 18px;
+            border-radius: 8px;
             border: none;
             font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            color: white;
+        }
+        .btn-green:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3); }
+
+        .btn-blue {
+            background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
+            color: white;
+        }
+        .btn-blue:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74, 95, 217, 0.3); }
+
+        .btn-red {
+            background: #dc2626;
+            color: white;
+        }
+        .btn-red:hover { background: #b91c1c; transform: translateY(-1px); }
+
+        /* Modal Overlay & Card Window */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 28px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .modal-header h3 { margin: 0; font-size: 20px; font-weight: 700; color: #1e1e2d; }
+
+        .close-btn {
+            background: #f3f4f6;
+            border: none;
+            font-size: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: #6b7280;
             cursor: pointer;
         }
 
-        .btn-add { background: #16a34a; color: white; }
-        .btn-update { background: #4a5fd9; color: white; }
-        .btn-delete { background: #dc2626; color: white; }
+        .close-btn:hover { background: #e5e7eb; color: #111827; }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            font-size: 14px;
+            color: #333;
+            background: #ffffff;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4a5fd9;
+            box-shadow: 0 0 0 3px rgba(74, 95, 217, 0.15);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #4b5563;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover { background: #e5e7eb; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="top-bar">
-        <h2 style="margin: 0;">Artist Catalog</h2>
-        <a href="/">← Go Back</a>
+        <h2>Artist Catalog</h2>
+        <a href="/" class="nav-link">← Go Back</a>
     </div>
 
-    <!-- List Box showing all artists -->
-    <select id="artistListBox" size="10" class="artist-listbox" onchange="populateForm()">
+    <!-- Catalog Listbox -->
+    <select id="artistListBox" size="10" class="artist-listbox">
         {% for artist in artists %}
             <option value="{{ artist.id }}" 
                     data-name="{{ artist.name }}" 
                     data-contact="{{ artist.booking_contact or '' }}" 
                     data-events="{{ (artist.event_ids or []) | join(', ') }}">
-                {{ artist.name }} (Contact: {{ artist.booking_contact or 'N/A' }})
+                {{ artist.name }} — (Contact: {{ artist.booking_contact or 'N/A' }})
             </option>
         {% endfor %}
     </select>
 
-    <!-- Simple Form to Add / Edit Selected Artist -->
-    <form id="artistForm">
-        <input type="hidden" id="artistId">
+    <!-- Catalog Controls -->
+    <div class="actions">
+        <button type="button" class="btn btn-green" onclick="openCreateModal()">+ Add Artist</button>
+        <button type="button" class="btn btn-blue" onclick="openUpdateModal()">✏️ Edit Selected</button>
+        <button type="button" class="btn btn-red" onclick="deleteSelectedArtist()">🗑️ Delete Selected</button>
+    </div>
+</div>
 
-        <div class="form-group">
-            <label>Name</label>
-            <input type="text" id="artistName" required placeholder="Artist name">
+<!-- Modal Window for Create / Update -->
+<div id="artistModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Create Artist</h3>
+            <button class="close-btn" onclick="closeModal()">&times;</button>
         </div>
 
-        <div class="form-group">
-            <label>Booking Contact</label>
-            <input type="text" id="bookingContact" placeholder="Contact info">
-        </div>
+        <form id="artistForm" onsubmit="handleFormSubmit(event)">
+            <input type="hidden" name="artist_id" id="formArtistId">
 
-        <div class="form-group">
-            <label>Event IDs (Comma-separated)</label>
+            <div class="form-group">
+                <label>Artist Name</label>
+                <input type="text" name="name" id="formName" required placeholder="e.g. Kavin!!!">
+            </div>
+
+            <div class="form-group">
+                <label>Booking Contact</label>
+                <input type="text" name="booking_contact" id="formContact" placeholder="e.g. email@domain.com">
+            </div>
+
+            <!-- Create Mode Specific Field -->
+            <div id="createFields">
+                <div class="form-group">
+                    <label>Custom ID (Optional)</label>
+                    <input type="text" name="custom_id" id="formCustomId" placeholder="eeeeeeee-0000-4000-8000-000000000002">
+                </div>
+                <div class="form-group">
+                    <label>Event IDs to Book (Comma-separated)</label>
+                    <input type="text" name="event" id="formCreateEvents" placeholder="event_id_1, event_id_2">
+                </div>
+            </div>
+
+            <!-- Update Mode Specific Fields -->
+            <div id="updateFields" style="display: none;">
+                <div class="form-group">
+                    <label>Add Event IDs (Comma-separated)</label>
+                    <input type="text" name="add_event" id="formAddEvents" placeholder="event_id_to_add">
+                </div>
+                <div class="form-group">
+                    <label>Remove Event IDs (Comma-separated)</label>
+                    <input type="text" name="remove_event" id="formRemoveEvents" placeholder="event_id_to_remove">
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" id="modalSubmitBtn" class="btn btn-green">Save Artist</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let isEditMode = false;
+
+    function getSelectedOption() {
+        const listBox = document.getElementById('artistListBox');
+        if (listBox.selectedIndex === -1) return null;
+        return listBox.options[listBox.selectedIndex];
+    }
+
+    function openCreateModal() {
+        isEditMode = false;
+        document.getElementById('modalTitle').innerText = 'Create Artist';
+        document.getElementById('artistForm').reset();
+        document.getElementById('formArtistId').value = '';
+        
+        // Show create fields, hide update fields
+        document.getElementById('createFields').style.display = 'block';
+        document.getElementById('updateFields').style.display = 'none';
+        document.getElementById('modalSubmitBtn').className = 'btn btn-green';
+
+        document.getElementById('artistModal').style.display = 'flex';
+    }
+
+    function openUpdateModal() {
+        const selected = getSelectedOption();
+        if (!selected) {
+            alert('Please select an artist from the catalog listbox first.');
+            return;
+        }
+
+        isEditMode = true;
+        document.getElementById('modalTitle').innerText = 'Update Artist';
+        document.getElementById('artistForm').reset();
+
+        // Populate basic values
+        document.getElementById('formArtistId').value = selected.value;
+        document.getElementById('formName').value = selected.dataset.name || '';
+        document.getElementById('formContact').value = selected.dataset.contact || '';
+
+        // Show update fields, hide create fields
+        document.getElementById('createFields').style.display = 'none';
+        document.getElementById('updateFields').style.display = 'block';
+        document.getElementById('modalSubmitBtn').className = 'btn btn-blue';
+
+        document.getElementById('artistModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('artistModal').style.display = 'none';
+        document.getElementById('artistForm').reset();
+    }
+
+    async function handleFormSubmit(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const parseList = (str) => str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+        let endpoint = '';
+        let payload = {};
+
+        if (isEditMode) {
+            endpoint = '/api/artist/update';
+            payload = {
+                artist_id: formData.get('artist_id'),
+                name: formData.get('name') || null,
+                booking_contact: formData.get('booking_contact') || null,
+                add_event: parseList(formData.get('add_event')),
+                remove_event: parseList(formData.get('remove_event'))
+            };
+        } else {
+            endpoint = '/api/artist/create';
+            payload = {
+                name: formData.get('name'),
+                booking_contact: formData.get('booking_contact'),
+                custom_id: formData.get('custom_id') || null,
+                event: parseList(formData.get('event'))
+            };
+        }
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                closeModal();
+                window.location.reload();
+            } else {
+                const err = await res.json();
+                alert('Error: ' + (err.message || res.statusText));
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            alert('Failed to communicate with web server.');
+        }
+    }
+
+    async function deleteSelectedArtist() {
+        const selected = getSelectedOption();
+        if (!selected) {
+            alert('Please select an artist from the catalog listbox first.');
+            return;
+        }
+
+        const artistId = selected.value;
+        const artistName = selected.dataset.name;
+
+        if (confirm(`Are you sure you want to delete artist "${artistName}"?`)) {
+            try {
+                const res = await fetch('/api/artist/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ artist_id: artistId })
+                });
+
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    alert('Error deleting artist: ' + (err.message || res.statusText));
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Failed to submit delete request.');
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
