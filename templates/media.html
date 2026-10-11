@@ -15,7 +15,7 @@
         }
 
         .container {
-            max-width: 650px;
+            max-width: 700px;
             margin: 0 auto;
             background: white;
             padding: 28px;
@@ -226,7 +226,7 @@
             <option value="{{ item.id }}" 
                     data-url="{{ item.image_url }}" 
                     data-event="{{ item.event_id or '' }}">
-                {{ item.image_url }} — (Event: {{ item.event_name }})
+                {{ item.image_url }} — {{ item.id }} (Event: {{ item.event_name }})
             </option>
         {% endfor %}
     </select>

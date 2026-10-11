@@ -15,7 +15,7 @@
         }
 
         .container {
-            max-width: 650px;
+            max-width: 700px;
             margin: 0 auto;
             background: white;
             padding: 28px;
@@ -229,7 +229,7 @@
                     data-name="{{ category.name }}" 
                     data-description="{{ category.description or '' }}" 
                     data-events="{{ (category.event_ids or []) | join(', ') }}">
-                {{ category.name }} — ({{ category.description or 'No description' }})
+                {{ category.name }} — {{ category.id }} — ({{ category.description or 'No description' }})
             </option>
         {% endfor %}
     </select>

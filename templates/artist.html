@@ -15,7 +15,7 @@
         }
 
         .container {
-            max-width: 650px;
+            max-width: 700px;
             margin: 0 auto;
             background: white;
             padding: 28px;
@@ -227,7 +227,7 @@
                     data-name="{{ artist.name }}" 
                     data-contact="{{ artist.booking_contact or '' }}" 
                     data-events="{{ (artist.event_ids or []) | join(', ') }}">
-                {{ artist.name }} — (Contact: {{ artist.booking_contact or 'N/A' }})
+                {{ artist.name }} — {{ artist.id }} — (Contact: {{ artist.booking_contact or 'N/A' }})
             </option>
         {% endfor %}
     </select>
