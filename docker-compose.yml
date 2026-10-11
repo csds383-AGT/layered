@@ -23,9 +23,13 @@ services:
       dockerfile: logic/Dockerfile
     environment:
       DATABASE_URL: postgresql://festhub:festhub@db:5432/festhub
+      # listen only on app_net (not db_net), and only answer calls coming from the web container's address
+      BIND_ADDRESS: 172.30.83.20
+      PRESENTATION_IP: 172.30.83.10
     networks:
-      - app_net
-      - db_net
+      app_net:
+        ipv4_address: 172.30.83.20
+      db_net:
     depends_on:
       db:
         condition: service_healthy
@@ -53,7 +57,8 @@ services:
     ports:
       - "127.0.0.1:5001:5000"
     networks:
-      - app_net
+      app_net:
+        ipv4_address: 172.30.83.10
     depends_on:
       - logic
     develop:
@@ -72,6 +77,12 @@ services:
 networks:
   app_net:
     driver: bridge
+    ipam:
+      config:
+        # fixed addresses, so logic can tell the web container apart from anything else on this network
+        - subnet: 172.30.83.0/24
+          # containers without a fixed address get one from the upper half, so they can't take .10 or .20
+          ip_range: 172.30.83.128/25
   db_net:
     driver: bridge
 

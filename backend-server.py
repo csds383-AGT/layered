@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 import grpc
 from google.protobuf import empty_pb2
@@ -17,6 +18,10 @@ import festhub_pb2
 import festhub_pb2_grpc 
 
 PORT = int(os.getenv("BUSINESS_PORT", "50051"))
+# the address to listen on and the only address allowed to call us; docker-compose.yml sets these to the
+# logic and web containers' fixed IPs, and the defaults keep a server run outside Docker local to this machine
+BIND_ADDRESS = os.getenv("BIND_ADDRESS", "127.0.0.1")
+PRESENTATION_IP = os.getenv("PRESENTATION_IP", "127.0.0.1")
 
 def field(record, name, default=None):
     """Read a field from a database namedtuple, object, or dictionary."""
@@ -237,16 +242,43 @@ class FestHubService(festhub_pb2_grpc.FestHubServiceServicer):
         return empty_pb2.Empty()
 
 
+def peer_ip(peer):
+    """Pull the IP out of context.peer(), e.g. "ipv4:172.30.83.10:41234" or "ipv6:%5B::1%5D:41234"."""
+    return unquote(peer.partition(":")[2]).rpartition(":")[0].strip("[]")
+
+
+class PresentationTierOnly(grpc.ServerInterceptor):
+    """Refuse every call that doesn't come from the presentation tier's IP address."""
+
+    def intercept_service(self, continuation, handler_call_details):
+        handler = continuation(handler_call_details)
+        if handler is None:
+            return None
+
+        def guarded(request, context):
+            caller = peer_ip(context.peer())
+            if caller != PRESENTATION_IP:
+                logging.warning("Rejected gRPC call %s from %s", handler_call_details.method, caller)
+                context.abort(grpc.StatusCode.PERMISSION_DENIED, "only the presentation tier may call this service")
+            return handler.unary_unary(request, context)
+
+        return grpc.unary_unary_rpc_method_handler(
+            guarded,
+            request_deserializer=handler.request_deserializer,
+            response_serializer=handler.response_serializer,
+        )
+
+
 def serve():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     # one worker, because every request shares repository's single database connection
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1), interceptors=[PresentationTierOnly()])
     festhub_pb2_grpc.add_FestHubServiceServicer_to_server(FestHubService(), server)
-    bound_port = server.add_insecure_port(f"0.0.0.0:{PORT}")
+    bound_port = server.add_insecure_port(f"{BIND_ADDRESS}:{PORT}")
     if bound_port == 0:
-        raise RuntimeError(f"Could not bind gRPC server to port {PORT}")
+        raise RuntimeError(f"Could not bind gRPC server to {BIND_ADDRESS}:{PORT}")
     server.start()
-    logging.info("FestHub gRPC server listening on port %s", PORT)
+    logging.info("FestHub gRPC server listening on %s:%s, accepting calls only from %s", BIND_ADDRESS, PORT, PRESENTATION_IP)
     server.wait_for_termination()
 
 
