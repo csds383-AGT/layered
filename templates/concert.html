@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concerts - FestHub - Team AGT</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 30px 20px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .page-header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 { margin: 0 0 8px 0; font-size: 36px; }
+        .page-header p { margin: 0; opacity: 0.85; font-size: 16px; }
+
+        .top-nav {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .nav-btn {
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .nav-btn-light {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .nav-btn-light:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+
+        .nav-btn-green {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            color: white;
+        }
+
+        .nav-btn-green:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(22,163,74,0.4); }
+
+        .concert-grid {
+            max-width: 960px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+            gap: 20px;
+        }
+
+        .concert-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .concert-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+
+        .card-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+            padding-right: 12px;
+        }
+
+        .price-badge {
+            background: linear-gradient(135deg, #4a5fd9 0%, #5a3d99 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 15px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 14px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 14px;
+            line-height: 1.5;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 12px;
+        }
+
+        select {
+            padding: 7px 10px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            font-size: 13px;
+            color: #333;
+            background: white;
+            cursor: pointer;
+        }
+
+        select:focus { outline: none; border-color: #4a5fd9; }
+
+        .empty-state {
+            text-align: center;
+            color: rgba(255,255,255,0.85);
+            padding: 60px 20px;
+            font-size: 18px;
+        }
+
+        /* Create and update overlays */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 28px;
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+            max-height: 90vh;
+            overflow-y: auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e1e2d;
+        }
+
+        .close-btn {
+            background: #f3f4f6;
+            border: none;
+            font-size: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: #6b7280;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 6px;
+        }
+
+        .form-group input, 
+        .form-group textarea,
+        .form-group select {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            font-size: 14px;
+            color: #333;
+            background: #ffffff;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus, 
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #4a5fd9;
+            box-shadow: 0 0 0 3px rgba(74, 95, 217, 0.15);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 14px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        /* Modal Actions & Buttons */
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #4b5563;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h1>FestHub - Team AGT</h1>
+    </div>
+
+    <div class="top-nav">
+        <a href="/" class="nav-btn nav-btn-light">← Main Page</a>
+        <button type="button" class="nav-btn nav-btn-green" onclick="openModal()">+ Add New Concert</button>
+    </div>
+
+    <div id="concertModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Concert</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <form id="createConcertForm" onsubmit="handleConcertSubmit(event)">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" name="name" required placeholder="CWRU Jammy Jam">
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" rows="2" placeholder="CaseCash accepted"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Available Tickets</label>
+                        <input type="number" name="available_tickets" min="0" required placeholder="200">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ticket Price ($)</label>
+                        <!-- User inputs dollars (e.g. 25.50), JS converts to integer cents -->
+                        <input type="number" step="0.01" name="ticket_price" required placeholder="25.50">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Custom ID (Optional)</label>
+                    <input type="text" name="custom_id" placeholder="eeeeeeee-0000-4000-8000-000000000002">
+                </div>
+
+                <!-- Comma-separated inputs for repeatable array fields -->
+                <div class="form-group">
+                    <label>Artist IDs (Comma-separated)</label>
+                    <input type="text" name="artist" placeholder="id1, id2">
+                </div>
+
+                <div class="form-group">
+                    <label>Category IDs (Comma-separated)</label>
+                    <input type="text" name="category" placeholder="id1, id2">
+                </div>
+
+                <div class="form-group">
+                    <label>Media IDs (Comma-separated)</label>
+                    <input type="text" name="media" placeholder="id1, id2">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Create Concert</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if concerts %}
+    <div class="concert-grid">
+        {% for concert in concerts %}
+            <div class="concert-card">
+                <div class="card-header">
+                    <div class="card-name">{{ concert.name }}</div>
+                    <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
+                </div>
+
+                <div class="card-meta">
+                    <div class="meta-item">
+                        {% if concert.available_tickets == 0 %}
+                            Sold out
+                        {% else %}
+                            {{ concert.available_tickets }} Tickets Available
+                        {% endif %}
+                    </div>
+                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item }} {% endfor %}</div>
+                    <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item }} {% endfor %}</div>
+                </div>
+
+                {% if concert.description %}
+                    <div class="card-description"><b>Description:</b><br> {{ concert.description }}</div>
+                {% endif %}
+
+                {% if concert.media %}
+                    <div class="card-description"> <b>Media:</b><br> {% for item in concert.media %} {{ item }} {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <p>No concerts available yet.</p>
+        <a href="/create_concert" class="nav-btn nav-btn-green" style="display:inline-block; margin-top:12px;">+ Add the first concert</a>
+    </div>
+    {% endif %}
+
+</body>
+
+<script>
+    function openModal() {
+        document.getElementById('concertModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('concertModal').style.display = 'none';
+        document.getElementById('createConcertForm').reset();
+    }
+
+    async function handleConcertSubmit(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+
+        // Parse price string into integer cents (e.g. "25.50" -> 2550)
+        const priceFloat = parseFloat(formData.get('ticket_price')) || 0;
+        const ticketPriceCents = Math.round(priceFloat * 100);
+
+        // Helper function to split comma-separated text into clean arrays
+        const parseList = (str) => str ? str.split(',').map(item => item.trim()).filter(Boolean) : [];
+
+        const payload = {
+            name: formData.get('name'),
+            description: formData.get('description'),
+            available_tickets: parseInt(formData.get('available_tickets'), 10),
+            ticket_price: ticketPriceCents,
+            custom_id: formData.get('custom_id') || null,
+            artist: parseList(formData.get('artist')),
+            category: parseList(formData.get('category')),
+            media: parseList(formData.get('media'))
+        };
+
+        try {
+            const response = await fetch('/api/concert/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                closeModal();
+                window.location.reload(); // Refresh to reflect new concert
+            } else {
+                const err = await response.json();
+                alert('Error creating concert: ' + (err.message || response.statusText));
+            }
+        } catch (error) {
+            console.error('API submit error:', error);
+            alert('Failed to connect to backend endpoint.');
+        }
+    }
+
+
+</script>
+</html>
