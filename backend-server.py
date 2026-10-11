@@ -239,7 +239,8 @@ class FestHubService(festhub_pb2_grpc.FestHubServiceServicer):
 
 def serve():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # one worker, because every request shares repository's single database connection
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     festhub_pb2_grpc.add_FestHubServiceServicer_to_server(FestHubService(), server)
     bound_port = server.add_insecure_port(f"0.0.0.0:{PORT}")
     if bound_port == 0:

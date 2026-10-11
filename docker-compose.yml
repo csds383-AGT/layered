@@ -1,8 +1,6 @@
 services:
   db:
-    build:
-      context: .
-      target: db
+    build: db
     environment:
       POSTGRES_USER: festhub
       POSTGRES_PASSWORD: festhub
@@ -22,7 +20,7 @@ services:
   logic:
     build:
       context: .
-      target: logic
+      dockerfile: logic/Dockerfile
     environment:
       DATABASE_URL: postgresql://festhub:festhub@db:5432/festhub
     networks:
@@ -31,27 +29,51 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: logic
+          target: /festhub/logic
+        - action: sync+restart
+          path: backend-server.py
+          target: /festhub/backend-server.py
+        - action: rebuild
+          path: festhub.proto
+        - action: rebuild
+          path: requirements.txt
 
   web:
     build:
       context: .
-      target: web
+      dockerfile: web/Dockerfile
     environment:
       BUSINESS_HOST: logic
       BUSINESS_PORT: "50051"
+      FLASK_DEBUG: "1"
     ports:
-      - "5001:5000"
+      - "127.0.0.1:5001:5000"
     networks:
       - app_net
     depends_on:
       - logic
+    develop:
+      watch:
+        - action: sync
+          path: website.py
+          target: /festhub/website.py
+        - action: sync
+          path: templates
+          target: /festhub/templates
+        - action: rebuild
+          path: festhub.proto
+        - action: rebuild
+          path: requirements.txt
 
 networks:
   app_net:
     driver: bridge
   db_net:
     driver: bridge
-    internal: true
 
 volumes:
   db-data:

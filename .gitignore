@@ -3,3 +3,6 @@ __pycache__
 .idea/
 .venv
 .vscode
+*_pb2.py
+*_pb2.pyi
+*_pb2_grpc.py

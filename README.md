@@ -1,26 +1,19 @@
 # FestHub
 
 1. install [docker desktop](https://www.docker.com/products/docker-desktop/) and open it
-2. start the database
+2. start everything
    ```bash
-   docker compose up -d --build --wait
+   docker compose up --build --watch
    ```
-3. install the python packages (first time only, needs python 3.10 or newer)
-   ```bash
-   python3 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   ```
-4. start the shell
-   ```bash
-   PYTHONPATH=logic .venv/bin/python web/cli.py shell
-   ```
-5. type `exit` to leave the shell, then stop the database
-   ```bash
-   docker compose down
-   ```
+3. open http://localhost:5001
+4. press ctrl+c to stop
 
-the database starts with the demo's events, artists, categories, and media from `db/seed.sql`. your data is kept between runs. to start over with just the demo data, use `docker compose down -v` instead. do this once whenever `db/schema.sql` or `db/seed.sql` changes too.
+while it's running, saved changes to `website.py`, `templates/`, `backend-server.py`, and `logic/` show up on their own, and changes to `festhub.proto` or `requirements.txt` rebuild the containers.
 
-on windows, use `.venv\Scripts\` instead of `.venv/bin/`, and in powershell run `$env:PYTHONPATH="logic"` first instead of putting `PYTHONPATH=logic` in front.
+to reset the database to the demo data (needed whenever `db/schema.sql` or `db/seed.sql` changes):
+
+```bash
+docker compose down -v
+```
 
 if you want to access the postgres database  in your ide, use this config: ![img.png](img.png)
