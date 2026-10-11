@@ -281,6 +281,33 @@
             background: #e5e7eb;
             transform: translateY(-1px);
         }
+
+        .card-title-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            padding-right: 12px;
+        }
+
+        .btn-edit {
+            background: rgba(74, 95, 217, 0.1);
+            color: #4a5fd9;
+            border: 1px solid rgba(74, 95, 217, 0.2);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-edit:hover {
+            background: #4a5fd9;
+            color: white;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -290,8 +317,54 @@
 
     <div class="top-nav">
         <a href="/" class="nav-btn nav-btn-light">← Main Page</a>
-        <button type="button" class="nav-btn nav-btn-green" onclick="openModal()">+ Add New Concert</button>
+        <button type="button" class="nav-btn nav-btn-green" onclick="openCreateModal()">+ Add New Concert</button>
     </div>
+
+    {% if concerts %}
+    <div class="concert-grid">
+        {% for concert in concerts %}
+            <div class="concert-card">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <div class="card-name">{{ concert.name }}</div>
+                    <!-- Update Button right next to concert name -->
+                    <button type="button" class="btn-edit" onclick='openUpdateModal({{ concert | tojson }})'>✏️ Edit</button>
+                </div>
+                <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
+            </div>
+
+                <div class="card-meta">
+                    <div class="meta-item">
+                        {% if concert.available_tickets == 0 %}
+                            Sold out
+                        {% else %}
+                            {{ concert.available_tickets }} Tickets Available
+                        {% endif %}
+                    </div>
+                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item }} {% endfor %}</div>
+                    <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item }} {% endfor %}</div>
+                </div>
+
+                {% if concert.description %}
+                    <div class="card-description"><b>Description:</b><br> {{ concert.description }}</div>
+                {% endif %}
+
+                {% if concert.media %}
+                    <div class="card-description"> <b>Media:</b><br> {% for item in concert.media %} {{ item }} {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <p>No concerts available yet.</p>
+        <a href="/create_concert" class="nav-btn nav-btn-green" style="display:inline-block; margin-top:12px;">+ Add the first concert</a>
+    </div>
+    {% endif %}
+
+
+    <!-- Model fields -->
 
     <div id="concertModal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
@@ -300,7 +373,7 @@
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
             
-            <form id="createConcertForm" onsubmit="handleConcertSubmit(event)">
+            <form id="createConcertForm" onsubmit="handleFormSubmit(event)">
                 <div class="form-group">
                     <label>Name</label>
                     <input type="text" name="name" required placeholder="CWRU Jammy Jam">
@@ -353,101 +426,180 @@
         </div>
     </div>
 
-    {% if concerts %}
-    <div class="concert-grid">
-        {% for concert in concerts %}
-            <div class="concert-card">
-                <div class="card-header">
-                    <div class="card-name">{{ concert.name }}</div>
-                    <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
-                </div>
+    <div id="concertModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Create New Concert</h3>
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+        </div>
+        
+        <form id="concertForm" onsubmit="handleFormSubmit(event)">
+            <!-- Hidden field to hold event_id during updates -->
+            <input type="hidden" name="event_id" id="formEventId">
 
-                <div class="card-meta">
-                    <div class="meta-item">
-                        {% if concert.available_tickets == 0 %}
-                            Sold out
-                        {% else %}
-                            {{ concert.available_tickets }} Tickets Available
-                        {% endif %}
-                    </div>
-                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item }} {% endfor %}</div>
-                    <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item }} {% endfor %}</div>
-                </div>
-
-                {% if concert.description %}
-                    <div class="card-description"><b>Description:</b><br> {{ concert.description }}</div>
-                {% endif %}
-
-                {% if concert.media %}
-                    <div class="card-description"> <b>Media:</b><br> {% for item in concert.media %} {{ item }} {% endfor %}
-                    </div>
-                {% endif %}
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" id="formName" required placeholder="CWRU Jammy Jam">
             </div>
-        {% endfor %}    </div>
 
-    {% else %}
-    <div class="empty-state">
-        <p>No concerts available yet.</p>
-        <a href="/create_concert" class="nav-btn nav-btn-green" style="display:inline-block; margin-top:12px;">+ Add the first concert</a>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" id="formDescription" rows="2" placeholder="CaseCash accepted"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Available Tickets</label>
+                    <input type="number" name="available_tickets" id="formTickets" min="0" required placeholder="200">
+                </div>
+
+                <div class="form-group">
+                    <label>Ticket Price ($)</label>
+                    <input type="number" step="0.01" name="ticket_price" id="formPrice" required placeholder="25.50">
+                </div>
+            </div>
+
+            <!-- Fields for Create / Base Lists -->
+            <div id="createOnlyFields">
+                <div class="form-group">
+                    <label>Custom ID (Optional)</label>
+                    <input type="text" name="custom_id" id="formCustomId" placeholder="eeeeeeee-0000-4000-8000-000000000002">
+                </div>
+            </div>
+
+            <!-- List Inputs -->
+            <div class="form-group">
+                <label id="artistLabel">Artist IDs (Comma-separated)</label>
+                <input type="text" name="artist" id="formArtist" placeholder="id1, id2">
+            </div>
+
+            <div class="form-group">
+                <label id="categoryLabel">Category IDs (Comma-separated)</label>
+                <input type="text" name="category" id="formCategory" placeholder="id1, id2">
+            </div>
+
+            <div class="form-group">
+                <label id="mediaLabel">Media IDs (Comma-separated)</label>
+                <input type="text" name="media" id="formMedia" placeholder="id1, id2">
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" id="submitBtn" class="nav-btn nav-btn-green">Save</button>
+            </div>
+        </form>
     </div>
-    {% endif %}
-
+</div>
 </body>
 
 <script>
-    function openModal() {
+    let isEditMode = false;
+
+    function openCreateModal() {
+        isEditMode = false;
+        document.getElementById('modalTitle').innerText = 'Create New Concert';
+        document.getElementById('concertForm').reset();
+        document.getElementById('formEventId').value = '';
+        
+        // Show create-only fields
+        document.getElementById('createOnlyFields').style.display = 'block';
+        
+        document.getElementById('artistLabel').innerText = 'Artist IDs (Comma-separated)';
+        document.getElementById('categoryLabel').innerText = 'Category IDs (Comma-separated)';
+        document.getElementById('mediaLabel').innerText = 'Media IDs (Comma-separated)';
+        
+        document.getElementById('concertModal').style.display = 'flex';
+    }
+
+    function openUpdateModal(concert) {
+        isEditMode = true;
+        document.getElementById('modalTitle').innerText = 'Update Concert';
+        
+        // Pre-fill values
+        document.getElementById('formEventId').value = concert.id;
+        document.getElementById('formName').value = concert.name || '';
+        document.getElementById('formDescription').value = concert.description || '';
+        document.getElementById('formTickets').value = concert.available_tickets ?? '';
+        document.getElementById('formPrice').value = (concert.ticket_price / 100).toFixed(2);
+
+        // Hide custom ID field during updates
+        document.getElementById('createOnlyFields').style.display = 'none';
+
+        // Populate current lists as comma-separated values
+        document.getElementById('formArtist').value = (concert.artists || []).join(', ');
+        document.getElementById('formCategory').value = (concert.categories || []).join(', ');
+        document.getElementById('formMedia').value = (concert.media || []).join(', ');
+
+        document.getElementById('artistLabel').innerText = 'Add Artist IDs (Comma-separated)';
+        document.getElementById('categoryLabel').innerText = 'Add Category IDs (Comma-separated)';
+        document.getElementById('mediaLabel').innerText = 'Add Media IDs (Comma-separated)';
+
         document.getElementById('concertModal').style.display = 'flex';
     }
 
     function closeModal() {
         document.getElementById('concertModal').style.display = 'none';
-        document.getElementById('createConcertForm').reset();
+        document.getElementById('concertForm').reset();
     }
 
-    async function handleConcertSubmit(event) {
+    async function handleFormSubmit(event) {
         event.preventDefault();
         const formData = new FormData(event.target);
 
-        // Parse price string into integer cents (e.g. "25.50" -> 2550)
         const priceFloat = parseFloat(formData.get('ticket_price')) || 0;
         const ticketPriceCents = Math.round(priceFloat * 100);
-
-        // Helper function to split comma-separated text into clean arrays
         const parseList = (str) => str ? str.split(',').map(item => item.trim()).filter(Boolean) : [];
 
-        const payload = {
-            name: formData.get('name'),
-            description: formData.get('description'),
-            available_tickets: parseInt(formData.get('available_tickets'), 10),
-            ticket_price: ticketPriceCents,
-            custom_id: formData.get('custom_id') || null,
-            artist: parseList(formData.get('artist')),
-            category: parseList(formData.get('category')),
-            media: parseList(formData.get('media'))
-        };
+        let endpoint = '';
+        let payload = {};
+
+        if (isEditMode) {
+            endpoint = '/api/concert/update';
+            payload = {
+                event_id: formData.get('event_id'),
+                name: formData.get('name') || null,
+                description: formData.get('description') || null,
+                available_tickets: parseInt(formData.get('available_tickets'), 10),
+                ticket_price: ticketPriceCents,
+                add_artist: parseList(formData.get('artist')),
+                remove_artist: [],
+                add_category: parseList(formData.get('category')),
+                remove_category: [],
+                add_media: parseList(formData.get('media')),
+                remove_media: []
+            };
+        } else {
+            endpoint = '/api/concert/create';
+            payload = {
+                name: formData.get('name'),
+                description: formData.get('description'),
+                available_tickets: parseInt(formData.get('available_tickets'), 10),
+                ticket_price: ticketPriceCents,
+                custom_id: formData.get('custom_id') || null,
+                artist: parseList(formData.get('artist')),
+                category: parseList(formData.get('category')),
+                media: parseList(formData.get('media'))
+            };
+        }
 
         try {
-            const response = await fetch('/api/concert/create', {
+            const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (response.ok) {
                 closeModal();
-                window.location.reload(); // Refresh to reflect new concert
+                window.location.reload();
             } else {
                 const err = await response.json();
-                alert('Error creating concert: ' + (err.message || response.statusText));
+                alert('Error: ' + (err.message || response.statusText));
             }
         } catch (error) {
-            console.error('API submit error:', error);
-            alert('Failed to connect to backend endpoint.');
+            console.error('Submit error:', error);
+            alert('Failed to connect to web server endpoint.');
         }
     }
-
-
 </script>
 </html>

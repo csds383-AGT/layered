@@ -85,12 +85,39 @@ def concert_page():
     # render page with the goods
     return render_template("concert.html", concerts=reply)
 
+@app.route("/artist")
+def artist_page():
+    # ask server for info
+    raw_returns = "{}" # a really big list of concerts ig
 
+    # Replace stuff here with the id's later
+    sample_return = """
+    [
+        {
+        "name": "Kavin!!!",
+        "booking_contact": "kavin@example.com",
+        "event_ids": ["eeeeeeee-0000-4000-8000-000000000002"],
+        "events": ["CWRU Jammy Jam"]
+        },
+        {
+        "name": "Evil Kavin >:)",
+        "booking_contact": "kavin@example.com",
+        "event_ids": ["eeeeeeee-0000-4000-8000-000000000003"],
+        "events": ["CWRU Jammy Jam But better"]
+        }
+    ]
+    """
+
+    reply = decoder.decode(sample_return)
+    # all of these better be strings so help me god
+
+    # render page with the goods
+    return render_template("artist.html", artists=reply)
 
 
 # ======================================================================
 # Api Segments
-# These are here just to catch the create/update posts
+# These are here just to catch the create/update posts. Just passes data to Buisness end
 # ======================================================================
 
 
@@ -108,6 +135,9 @@ def create_concert():
 def update_concert():
     return "Success"
 
+@app.route("/api/concert/delete", methods=['POST'])
+def delete_concert():
+    return "Success"
 
 # Category
 @app.route("/api/category/create", methods=['POST'])
@@ -118,6 +148,9 @@ def create_category():
 def update_category():
     return "Success"
 
+@app.route("/api/category/delete", methods=['POST'])
+def delete_category():
+    return "Success"
 # media
 @app.route("/api/media/create", methods=['POST'])
 def create_media():
@@ -125,4 +158,8 @@ def create_media():
 
 @app.route("/api/media/update", methods=['POST'])
 def update_media():
+    return "Success"
+
+@app.route("/api/media/delete", methods=['POST'])
+def delete_media():
     return "Success"
