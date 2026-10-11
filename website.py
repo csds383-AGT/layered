@@ -11,7 +11,7 @@ import logging
 
 app = Flask(__name__)
 GRPC_TARGET = f"{os.getenv('BUSINESS_HOST', 'localhost')}:{os.getenv('BUSINESS_PORT', '50051')}"
-channel = grpc.insecure_channel(GRPC_TARGET)
+channel = grpc.insecure_channel(GRPC_TARGET) # use insecure channel for development, switch to TLS for production
 backend = festhub_pb2_grpc.FestHubServiceStub(channel)
 RPC_TIMEOUT_SECONDS = float(os.getenv("GRPC_TIMEOUT_SECONDS", "3"))
 
