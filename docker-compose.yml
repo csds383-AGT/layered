@@ -16,23 +16,42 @@ services:
       test: ["CMD", "pg_isready", "-U", "festhub"]
       interval: 2s
       retries: 15
+    networks:
+      - db_net
 
-  # logic and web are placeholders for the gRPC tiers, so they only start with --profile grpc
   logic:
     build:
       context: .
       target: logic
-    profiles: [grpc]
+    environment:
+      DATABASE_URL: postgresql://festhub:festhub@db:5432/festhub
+    networks:
+      - app_net
+      - db_net
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   web:
     build:
       context: .
       target: web
-    profiles: [grpc]
+    environment:
+      BUSINESS_HOST: logic
+      BUSINESS_PORT: "50051"
+    ports:
+      - "5001:5000"
+    networks:
+      - app_net
     depends_on:
       - logic
+
+networks:
+  app_net:
+    driver: bridge
+  db_net:
+    driver: bridge
+    internal: true
 
 volumes:
   db-data:

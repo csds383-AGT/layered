@@ -2,3 +2,5 @@ typer
 email-validator
 psycopg[binary]
 flask
+grpcio
+grpcio-tools
