@@ -221,7 +221,7 @@
             margin-bottom: 6px;
         }
 
-        .form-group input, 
+        .form-group input,
         .form-group textarea,
         .form-group select {
             padding: 10px 12px;
@@ -234,7 +234,7 @@
             transition: border-color 0.2s, box-shadow 0.2s;
         }
 
-        .form-group input:focus, 
+        .form-group input:focus,
         .form-group textarea:focus,
         .form-group select:focus {
             outline: none;
@@ -253,6 +253,101 @@
 
         .form-row .form-group {
             flex: 1;
+        }
+
+        /* Name chips for linked artists, categories and media */
+        .chip-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            min-height: 42px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            background: #fafafa;
+            margin-bottom: 8px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(74, 95, 217, 0.1);
+            color: #3b4ab0;
+            border: 1px solid rgba(74, 95, 217, 0.25);
+            padding: 4px 6px 4px 10px;
+            border-radius: 14px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chip-remove {
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-size: 16px;
+            line-height: 1;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .chip-remove:hover {
+            background: #dc2626;
+            color: white;
+        }
+
+        .chip-empty {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        .btn-add {
+            align-self: flex-start;
+            background: #f3f4f6;
+            color: #4a5fd9;
+            border: 1px solid rgba(74, 95, 217, 0.2);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-add:hover { background: #e5e7eb; }
+
+        /* Catalog picker */
+        .picker-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+
+        .picker-item {
+            text-align: left;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .picker-item:hover {
+            background: rgba(74, 95, 217, 0.1);
+            border-color: #4a5fd9;
+        }
+
+        .picker-empty {
+            color: #6b7280;
+            font-size: 14px;
+            margin: 0;
         }
 
         /* Modal Actions & Buttons */
@@ -301,6 +396,7 @@
             cursor: pointer;
             transition: all 0.2s ease;
             white-space: nowrap;
+            text-decoration: none;
         }
 
         .btn-edit:hover {
@@ -345,8 +441,8 @@
             <div class="card-header">
             <div class="card-title-group">
                 <div class="card-name">{{ concert.name }}</div>
-                <button type="button" class="btn-edit" onclick='openUpdateModal({{ concert | tojson }})'>✏️ Edit</button>
-                <button type="button" class="btn-delete" onclick='deleteConcert("{{ concert.id }}", "{{ concert.name }}")'>🗑️ Delete</button>
+                <a class="btn-edit" href="/concert/{{ concert.id | urlencode }}/edit">✏️ Edit</a>
+                <button type="button" class="btn-delete" onclick='deleteConcert({{ concert.id | tojson }}, {{ concert.name | tojson }})'>🗑️ Delete</button>
             </div>
             <span class="price-badge">${{ "%.2f"|format(concert.ticket_price / 100) }}</span>
         </div>
@@ -359,8 +455,8 @@
                             {{ concert.available_tickets }} Tickets Available
                         {% endif %}
                     </div>
-                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item }} {% endfor %}</div>
-                    <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item }} {% endfor %}</div>
+                    <div class="meta-item"><b>Catagories: </b> {% for item in concert.categories %} {{ item.name }} {% endfor %}</div>
+                    <div class="meta-item"><b>Artists: </b> {% for item in concert.artists %} {{ item.name }} {% endfor %}</div>
                 </div>
 
                 {% if concert.description %}
@@ -368,7 +464,7 @@
                 {% endif %}
 
                 {% if concert.media %}
-                    <div class="card-description"> <b>Media:</b><br> {% for item in concert.media %} {{ item }} {% endfor %}
+                    <div class="card-description"> <b>Media:</b><br> {% for item in concert.media %} {{ item.name }} {% endfor %}
                     </div>
                 {% endif %}
             </div>
@@ -377,187 +473,223 @@
     {% else %}
     <div class="empty-state">
         <p>No concerts available yet.</p>
-        <a href="/create_concert" class="nav-btn nav-btn-green" style="display:inline-block; margin-top:12px;">+ Add the first concert</a>
+        <button type="button" class="nav-btn nav-btn-green" style="margin-top:12px;" onclick="openCreateModal()">+ Add the first concert</button>
     </div>
     {% endif %}
 
 
-    <!-- Model fields -->
-
+    <!-- One form for create and update. /concert/<id>/edit renders it with the concert prefilled -->
     <div id="concertModal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Create New Concert</h3>
+                <h3 id="modalTitle">{{ title }}</h3>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
-            
-            <form id="createConcertForm" onsubmit="handleFormSubmit(event)">
+
+            <form id="concertForm" onsubmit="handleFormSubmit(event)">
+                <!-- Holds the concert id during updates -->
+                <input type="hidden" name="event_id" id="formEventId">
+
                 <div class="form-group">
                     <label>Name</label>
-                    <input type="text" name="name" required placeholder="CWRU Jammy Jam">
+                    <input type="text" name="name" id="formName" required placeholder="CWRU Jammy Jam">
                 </div>
 
                 <div class="form-group">
                     <label>Description</label>
-                    <textarea name="description" rows="2" placeholder="CaseCash accepted"></textarea>
+                    <textarea name="description" id="formDescription" rows="2" placeholder="CaseCash accepted"></textarea>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label>Available Tickets</label>
-                        <input type="number" name="available_tickets" min="0" required placeholder="200">
+                        <input type="number" name="available_tickets" id="formTickets" min="0" required placeholder="200">
                     </div>
 
                     <div class="form-group">
                         <label>Ticket Price ($)</label>
-                        <!-- User inputs dollars (e.g. 25.50), JS converts to integer cents -->
-                        <input type="number" step="0.01" name="ticket_price" required placeholder="25.50">
+                        <input type="number" step="0.01" min="0" name="ticket_price" id="formPrice" required placeholder="25.50">
+                    </div>
+                </div>
+
+                <div id="createOnlyFields">
+                    <div class="form-group">
+                        <label>Custom ID (Optional)</label>
+                        <input type="text" name="custom_id" id="formCustomId" placeholder="eeeeeeee-0000-4000-8000-000000000002">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Custom ID (Optional)</label>
-                    <input type="text" name="custom_id" placeholder="eeeeeeee-0000-4000-8000-000000000002">
-                </div>
-
-                <!-- Comma-separated inputs for repeatable array fields -->
-                <div class="form-group">
-                    <label>Artist IDs (Comma-separated)</label>
-                    <input type="text" name="artist" placeholder="id1, id2">
+                    <label>Artists</label>
+                    <div class="chip-box" id="artistChips"></div>
+                    <button type="button" class="btn-add" onclick="openPicker('artist')">+ Add artist</button>
                 </div>
 
                 <div class="form-group">
-                    <label>Category IDs (Comma-separated)</label>
-                    <input type="text" name="category" placeholder="id1, id2">
+                    <label>Categories</label>
+                    <div class="chip-box" id="categoryChips"></div>
+                    <button type="button" class="btn-add" onclick="openPicker('category')">+ Add category</button>
                 </div>
 
                 <div class="form-group">
-                    <label>Media IDs (Comma-separated)</label>
-                    <input type="text" name="media" placeholder="id1, id2">
+                    <label>Media</label>
+                    <div class="chip-box" id="mediaChips"></div>
+                    <button type="button" class="btn-add" onclick="openPicker('media')">+ Add media</button>
                 </div>
 
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn-primary">Create Concert</button>
+                    <button type="submit" id="submitBtn" class="nav-btn nav-btn-green">Save</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="concertModal" class="modal-overlay" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="modalTitle">Create New Concert</h3>
-            <button class="close-btn" onclick="closeModal()">&times;</button>
+    <!-- Catalog picker, opened by the + Add buttons -->
+    <div id="pickerModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="pickerTitle">Add</h3>
+                <button class="close-btn" onclick="closePicker()">&times;</button>
+            </div>
+            <div id="pickerList" class="picker-list"></div>
         </div>
-        
-        <form id="concertForm" onsubmit="handleFormSubmit(event)">
-            <!-- Hidden field to hold event_id during updates -->
-            <input type="hidden" name="event_id" id="formEventId">
-
-            <div class="form-group">
-                <label>Name</label>
-                <input type="text" name="name" id="formName" required placeholder="CWRU Jammy Jam">
-            </div>
-
-            <div class="form-group">
-                <label>Description</label>
-                <textarea name="description" id="formDescription" rows="2" placeholder="CaseCash accepted"></textarea>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Available Tickets</label>
-                    <input type="number" name="available_tickets" id="formTickets" min="0" required placeholder="200">
-                </div>
-
-                <div class="form-group">
-                    <label>Ticket Price ($)</label>
-                    <input type="number" step="0.01" name="ticket_price" id="formPrice" required placeholder="25.50">
-                </div>
-            </div>
-
-            <!-- Fields for Create / Base Lists -->
-            <div id="createOnlyFields">
-                <div class="form-group">
-                    <label>Custom ID (Optional)</label>
-                    <input type="text" name="custom_id" id="formCustomId" placeholder="eeeeeeee-0000-4000-8000-000000000002">
-                </div>
-            </div>
-
-            <!-- List Inputs -->
-            <div class="form-group">
-                <label id="artistLabel">Artist IDs (Comma-separated)</label>
-                <input type="text" name="artist" id="formArtist" placeholder="id1, id2">
-            </div>
-
-            <div class="form-group">
-                <label id="categoryLabel">Category IDs (Comma-separated)</label>
-                <input type="text" name="category" id="formCategory" placeholder="id1, id2">
-            </div>
-
-            <div class="form-group">
-                <label id="mediaLabel">Media IDs (Comma-separated)</label>
-                <input type="text" name="media" id="formMedia" placeholder="id1, id2">
-            </div>
-
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                <button type="submit" id="submitBtn" class="nav-btn nav-btn-green">Save</button>
-            </div>
-        </form>
     </div>
-</div>
 </body>
 
 <script>
+    // Catalogs come from the server; ids are kept internally, names are shown.
+    const catalogs = {
+        artist: {{ artist_catalog | tojson }},
+        category: {{ category_catalog | tojson }},
+        media: {{ media_catalog | tojson }}
+    };
+    const SINGULAR = { artist: 'Artist', category: 'Category', media: 'Media' };
+
+    // Set when the page is /concert/<id>/edit; null on the plain concert page.
+    const initialConcert = {{ concert | tojson }};
+
     let isEditMode = false;
+    let selected = { artist: [], category: [], media: [] };
+
+    function itemLabel(kind, item) {
+        return item.name;
+    }
+
+    function toSelected(kind, items) {
+        return items.map(item => {
+            const full = catalogs[kind].find(entry => entry.id === item.id) || item;
+            return { id: item.id, label: itemLabel(kind, full) };
+        });
+    }
+
+    function renderChips(kind) {
+        const container = document.getElementById(kind + 'Chips');
+        container.innerHTML = '';
+        if (selected[kind].length === 0) {
+            const empty = document.createElement('span');
+            empty.className = 'chip-empty';
+            empty.textContent = 'None added';
+            container.appendChild(empty);
+            return;
+        }
+        selected[kind].forEach(item => {
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = item.label;
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'chip-remove';
+            remove.title = 'Remove';
+            remove.innerHTML = '&times;';
+            remove.onclick = () => removeItem(kind, item.id);
+
+            chip.appendChild(remove);
+            container.appendChild(chip);
+        });
+    }
+
+    function removeItem(kind, id) {
+        selected[kind] = selected[kind].filter(item => item.id !== id);
+        renderChips(kind);
+    }
+
+    function openPicker(kind) {
+        document.getElementById('pickerTitle').innerText = 'Add ' + SINGULAR[kind];
+        const list = document.getElementById('pickerList');
+        list.innerHTML = '';
+
+        const chosen = new Set(selected[kind].map(item => item.id));
+        const available = catalogs[kind].filter(item => !chosen.has(item.id));
+        if (available.length === 0) {
+            list.innerHTML = '<p class="picker-empty">Everything in the catalog is already added.</p>';
+        }
+
+        available.forEach(item => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'picker-item';
+            button.textContent = itemLabel(kind, item);
+            button.onclick = () => {
+                selected[kind].push({ id: item.id, label: itemLabel(kind, item) });
+                renderChips(kind);
+                closePicker();
+            };
+            list.appendChild(button);
+        });
+
+        document.getElementById('pickerModal').style.display = 'flex';
+    }
+
+    function closePicker() {
+        document.getElementById('pickerModal').style.display = 'none';
+    }
+
+    function fillForm(concert) {
+        document.getElementById('concertForm').reset();
+        const c = concert || {};
+        document.getElementById('formEventId').value = c.id || '';
+        document.getElementById('formName').value = c.name || '';
+        document.getElementById('formDescription').value = c.description || '';
+        document.getElementById('formTickets').value = c.available_tickets ?? '';
+        document.getElementById('formPrice').value = c.ticket_price != null ? (c.ticket_price / 100).toFixed(2) : '';
+
+        // The custom ID only applies when creating
+        document.getElementById('createOnlyFields').style.display = concert ? 'none' : 'block';
+
+        selected = {
+            artist: toSelected('artist', c.artists || []),
+            category: toSelected('category', c.categories || []),
+            media: toSelected('media', c.media || [])
+        };
+        ['artist', 'category', 'media'].forEach(renderChips);
+    }
+
+    function showForm() {
+        document.getElementById('concertModal').style.display = 'flex';
+    }
 
     function openCreateModal() {
         isEditMode = false;
-        document.getElementById('modalTitle').innerText = 'Create New Concert';
-        document.getElementById('concertForm').reset();
-        document.getElementById('formEventId').value = '';
-        
-        // Show create-only fields
-        document.getElementById('createOnlyFields').style.display = 'block';
-        
-        document.getElementById('artistLabel').innerText = 'Artist IDs (Comma-separated)';
-        document.getElementById('categoryLabel').innerText = 'Category IDs (Comma-separated)';
-        document.getElementById('mediaLabel').innerText = 'Media IDs (Comma-separated)';
-        
-        document.getElementById('concertModal').style.display = 'flex';
+        document.getElementById('modalTitle').innerText = 'Create concert';
+        fillForm(null);
+        showForm();
     }
 
     function openUpdateModal(concert) {
         isEditMode = true;
-        document.getElementById('modalTitle').innerText = 'Update Concert';
-        
-        // Pre-fill values
-        document.getElementById('formEventId').value = concert.id;
-        document.getElementById('formName').value = concert.name || '';
-        document.getElementById('formDescription').value = concert.description || '';
-        document.getElementById('formTickets').value = concert.available_tickets ?? '';
-        document.getElementById('formPrice').value = (concert.ticket_price / 100).toFixed(2);
-
-        // Hide custom ID field during updates
-        document.getElementById('createOnlyFields').style.display = 'none';
-
-        // Populate current lists as comma-separated values
-        document.getElementById('formArtist').value = (concert.artists || []).join(', ');
-        document.getElementById('formCategory').value = (concert.categories || []).join(', ');
-        document.getElementById('formMedia').value = (concert.media || []).join(', ');
-
-        document.getElementById('artistLabel').innerText = 'Add Artist IDs (Comma-separated)';
-        document.getElementById('categoryLabel').innerText = 'Add Category IDs (Comma-separated)';
-        document.getElementById('mediaLabel').innerText = 'Add Media IDs (Comma-separated)';
-
-        document.getElementById('concertModal').style.display = 'flex';
+        document.getElementById('modalTitle').innerText = 'Update concert';
+        fillForm(concert);
+        showForm();
     }
 
     function closeModal() {
         document.getElementById('concertModal').style.display = 'none';
-        document.getElementById('concertForm').reset();
+        // Leave the edit URL so reloading does not reopen the form
+        if (initialConcert) {
+            window.location.href = '/concert';
+        }
     }
 
     async function handleFormSubmit(event) {
@@ -566,7 +698,7 @@
 
         const priceFloat = parseFloat(formData.get('ticket_price')) || 0;
         const ticketPriceCents = Math.round(priceFloat * 100);
-        const parseList = (str) => str ? str.split(',').map(item => item.trim()).filter(Boolean) : [];
+        const idsOf = kind => selected[kind].map(item => item.id);
 
         let endpoint = '';
         let payload = {};
@@ -579,12 +711,9 @@
                 description: formData.get('description') || null,
                 available_tickets: parseInt(formData.get('available_tickets'), 10),
                 ticket_price: ticketPriceCents,
-                add_artist: parseList(formData.get('artist')),
-                remove_artist: [],
-                add_category: parseList(formData.get('category')),
-                remove_category: [],
-                add_media: parseList(formData.get('media')),
-                remove_media: []
+                artist_ids: idsOf('artist'),
+                category_ids: idsOf('category'),
+                media_ids: idsOf('media')
             };
         } else {
             endpoint = '/api/concert/create';
@@ -594,9 +723,9 @@
                 available_tickets: parseInt(formData.get('available_tickets'), 10),
                 ticket_price: ticketPriceCents,
                 custom_id: formData.get('custom_id') || null,
-                artist: parseList(formData.get('artist')),
-                category: parseList(formData.get('category')),
-                media: parseList(formData.get('media'))
+                artist: idsOf('artist'),
+                category: idsOf('category'),
+                media: idsOf('media')
             };
         }
 
@@ -608,8 +737,7 @@
             });
 
             if (response.ok) {
-                closeModal();
-                window.location.reload();
+                window.location.href = '/concert';
             } else {
                 const err = await response.json();
                 alert('Error: ' + (err.message || response.statusText));
@@ -619,6 +747,7 @@
             alert('Failed to connect to web server endpoint.');
         }
     }
+
     async function deleteConcert(eventId, eventName) {
         if (!confirm(`Are you sure you want to delete "${eventName}"?`)) {
             return;
@@ -643,6 +772,11 @@
             console.error('Delete request error:', error);
             alert('Failed to send delete request to server.');
         }
+    }
+
+    // Opened from /concert/<id>/edit: prefill the form with the current concert
+    if (initialConcert) {
+        openUpdateModal(initialConcert);
     }
 </script>
 </html>

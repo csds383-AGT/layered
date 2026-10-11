@@ -226,7 +226,7 @@
             <option value="{{ item.id }}" 
                     data-url="{{ item.image_url }}" 
                     data-event="{{ item.event_id or '' }}">
-                {{ item.image_url }} — (Event ID: {{ item.event_id or 'N/A' }})
+                {{ item.image_url }} — (Event: {{ item.event_name }})
             </option>
         {% endfor %}
     </select>

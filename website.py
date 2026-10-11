@@ -111,53 +111,110 @@ def api_action(fn):
 def front_page():
     return render_template("frontpage.html")
 
+def fetch_concerts(concert_id=""):
+    response = rpc("ShowConcerts", festhub_pb2.ShowConcertsRequest(id=concert_id))
+    return list(response.concerts)
+
+
+def fetch_artists():
+    response = rpc("ShowArtists", festhub_pb2.ShowArtistsRequest())
+    return [{
+        "id": x.id, "name": x.name, "booking_contact": x.booking_contact,
+        "event_ids": list(x.event_ids),
+    } for x in response.artists]
+
+
+def fetch_categories():
+    response = rpc("ShowCategories", festhub_pb2.ShowCategoriesRequest())
+    return [{
+        "id": x.id, "name": x.name, "description": x.description,
+        "event_ids": list(x.event_ids),
+    } for x in response.categories]
+
+
+def fetch_media(concerts):
+    event_names = {c.id: c.name for c in concerts}
+    response = rpc("ShowMedia", festhub_pb2.ShowMediaRequest())
+    return [{
+        "id": x.id, "event_id": x.event_id, "image_url": x.image_url,
+        "name": x.image_url,
+        "event_name": event_names.get(x.event_id, x.event_id),
+    } for x in response.media]
+
+
+def linked(ids, lookup):
+    """Turn linked ids into {id, name} pairs; unknown ids fall back to the raw id."""
+    return [{"id": i, "name": lookup[i]["name"] if i in lookup else i} for i in ids]
+
+
+def concert_view(item, lookups):
+    """Shape a concert for the templates: names for display, ids for form values."""
+    return {
+        "id": item.id,
+        "name": item.name,
+        "description": item.description,
+        "available_tickets": item.available_tickets,
+        "ticket_price": item.ticket_price_cents,
+        "artists": linked(item.artist_ids, lookups["artists"]),
+        "categories": linked(item.category_ids, lookups["categories"]),
+        "media": linked(item.media_ids, lookups["media"]),
+        "artist_ids": list(item.artist_ids),
+        "category_ids": list(item.category_ids),
+        "media_ids": list(item.media_ids),
+    }
+
+
+def render_concert_page(title, concert_id=None):
+    """Create and update share one template; update passes the concert so the form can be prefilled."""
+    concerts = fetch_concerts()
+    catalog = {
+        "artists": fetch_artists(),
+        "categories": fetch_categories(),
+        "media": fetch_media(concerts),
+    }
+    lookups = {kind: {x["id"]: x for x in items} for kind, items in catalog.items()}
+
+    current = None
+    if concert_id is not None:
+        current = next((c for c in concerts if c.id == concert_id), None)
+        if current is None:
+            abort(404, description=f"Concert not found: {concert_id}")
+
+    return render_template(
+        "concert.html",
+        title=title,
+        mode="update" if concert_id is not None else "create",
+        concert=concert_view(current, lookups) if current is not None else None,
+        concerts=[concert_view(c, lookups) for c in concerts],
+        artist_catalog=catalog["artists"],
+        category_catalog=catalog["categories"],
+        media_catalog=catalog["media"],
+    )
+
+
 @app.route("/concert")
 def concert_page():
-    response = rpc("ShowConcerts", festhub_pb2.ShowConcertsRequest())
-    concerts = []
-    for item in response.concerts:
-        concerts.append({
-            "id": item.id,
-            "name": item.name,
-            "description": item.description,
-            "available_tickets": item.available_tickets,
-            "ticket_price": item.ticket_price_cents,\
-            "artists": list(item.artist_ids),
-            "categories": list(item.category_ids),
-            "media": list(item.media_ids),
-            "artist_ids": list(item.artist_ids),
-            "category_ids": list(item.category_ids),
-            "media_ids": list(item.media_ids),
-        })
-    return render_template("concert.html", concerts=concerts)
+    return render_concert_page("Create concert")
+
+
+@app.route("/concert/<concert_id>/edit")
+def edit_concert_page(concert_id):
+    return render_concert_page("Update concert", concert_id)
 
 
 @app.route("/artist")
 def artist_page():
-    response = rpc("ShowArtists", festhub_pb2.ShowArtistsRequest())
-    artists = [{
-        "id": x.id, "name": x.name, "booking_contact": x.booking_contact,
-        "event_ids": list(x.event_ids),
-    } for x in response.artists]
-    return render_template("artist.html", artists=artists)
+    return render_template("artist.html", artists=fetch_artists())
 
 
 @app.route("/category")
 def category_page():
-    response = rpc("ShowCategories", festhub_pb2.ShowCategoriesRequest())
-    categories = [{
-        "id": x.id, "name": x.name, "description": x.description,
-        "event_ids": list(x.event_ids),
-    } for x in response.categories]
-    return render_template("category.html", categories=categories)
+    return render_template("category.html", categories=fetch_categories())
 
 
 @app.route("/media")
 def media_page():
-    response = rpc("ShowMedia", festhub_pb2.ShowMediaRequest())
-    media_assets = [{"id": x.id, "event_id": x.event_id, "image_url": x.image_url}
-                    for x in response.media]
-    return render_template("media.html", media_assets=media_assets)
+    return render_template("media.html", media_assets=fetch_media(fetch_concerts()))
 
 
 @app.route("/api")
@@ -184,11 +241,35 @@ def create_concert():
     return api_action(action)
 
 
+def apply_link_changes(payload, data, current, name):
+    """Fill the add/remove ids for artist, category or media on an UpdateConcertRequest.
+
+    Either the full desired list under `name` / `name_ids` (same keys create uses) is
+    diffed against the concert's current links, or explicit `add_<name>` / `remove_<name>` lists are used.
+    """
+    desired = data.get(name, data.get(f"{name}_ids"))
+    if desired is not None:
+        wanted = parse_ids(desired)
+        existing = list(getattr(current, f"{name}_ids"))
+        added = [i for i in wanted if i not in existing]
+        removed = [i for i in existing if i not in wanted]
+    else:
+        added = parse_ids(data.get(f"add_{name}", data.get(f"add_{name}_ids")))
+        removed = parse_ids(data.get(f"remove_{name}", data.get(f"remove_{name}_ids")))
+    getattr(payload, f"add_{name}_ids").extend(added)
+    getattr(payload, f"remove_{name}_ids").extend(removed)
+
+
 @app.post("/api/concert/update")
 def update_concert():
     def action():
         data = get_json()
-        payload = festhub_pb2.UpdateConcertRequest(id=str(required(data, "event_id")))
+        concert_id = str(required(data, "event_id"))
+        current = next((c for c in fetch_concerts(concert_id) if c.id == concert_id), None)
+        if current is None:
+            abort(404, description=f"Concert not found: {concert_id}")
+
+        payload = festhub_pb2.UpdateConcertRequest(id=concert_id)
         if data.get("name") is not None:
             payload.name = str(data["name"])
         if data.get("description") is not None:
@@ -198,12 +279,8 @@ def update_concert():
         price = optional_price_to_decimal(data)
         if price is not None:
             payload.ticket_price = price
-        payload.add_artist_ids.extend(parse_ids(data.get("add_artist", data.get("add_artist_ids"))))
-        payload.remove_artist_ids.extend(parse_ids(data.get("remove_artist", data.get("remove_artist_ids"))))
-        payload.add_category_ids.extend(parse_ids(data.get("add_category", data.get("add_category_ids"))))
-        payload.remove_category_ids.extend(parse_ids(data.get("remove_category", data.get("remove_category_ids"))))
-        payload.add_media_ids.extend(parse_ids(data.get("add_media", data.get("add_media_ids"))))
-        payload.remove_media_ids.extend(parse_ids(data.get("remove_media", data.get("remove_media_ids"))))
+        for name in ("artist", "category", "media"):
+            apply_link_changes(payload, data, current, name)
         rpc("UpdateConcert", payload)
         return {"ok": True}
     return api_action(action)
